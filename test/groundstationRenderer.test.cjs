@@ -1,0 +1,163 @@
+const assert = require("node:assert/strict");
+const { pathToFileURL } = require("node:url");
+const path = require("node:path");
+const { test } = require("node:test");
+
+const moduleUrl = pathToFileURL(
+  path.resolve(__dirname, "../src/groundstation/renderer/missionApi.js")
+).href;
+const workerFormUrl = pathToFileURL(
+  path.resolve(__dirname, "../src/groundstation/renderer/workerForm.js")
+).href;
+const terminalLayoutUrl = pathToFileURL(
+  path.resolve(__dirname, "../src/groundstation/renderer/useTerminalLayout.js")
+).href;
+
+test("Groundstation build is isolated from parent PostCSS configurations", async () => {
+  const configUrl = pathToFileURL(
+    path.resolve(__dirname, "../vite.groundstation.config.mjs")
+  ).href;
+  const { default: config } = await import(`${configUrl}?postcss=${Date.now()}`);
+
+  assert.deepEqual(config.css?.postcss, { plugins: [] });
+  assert.deepEqual(config.build?.rollupOptions?.output?.manualChunks, {
+    "vendor-react": ["react", "react-dom"],
+    "vendor-terminal": ["@xterm/xterm", "@xterm/addon-fit"]
+  });
+});
+
+test("renderer bridge unwraps protocol results and preserves structured errors", async t => {
+  const originalWindow = global.window;
+  t.after(() => { global.window = originalWindow; });
+  const subscriptions = [];
+  global.window = {
+    missionControl: {
+      subscribe(callback) {
+        subscriptions.push(callback);
+        return () => subscriptions.splice(subscriptions.indexOf(callback), 1);
+      },
+      async request(method) {
+        if (method === "state.get") return { version: 1, id: "a", ok: true, result: { sequence: 9 } };
+        return {
+          version: 1,
+          id: "b",
+          ok: false,
+          error: { code: "ACTION_FAILED", message: "worker refused" }
+        };
+      }
+    }
+  };
+  const { missionApi } = await import(`${moduleUrl}?bridge=${Date.now()}`);
+  const api = missionApi();
+
+  assert.deepEqual(await api.request("state.get"), { sequence: 9 });
+  await assert.rejects(
+    api.request("action.dispatch"),
+    error => error.code === "ACTION_FAILED" && error.message === "worker refused"
+  );
+  const unsubscribe = api.subscribe(() => {});
+  assert.equal(subscriptions.length, 1);
+  unsubscribe();
+  assert.equal(subscriptions.length, 0);
+});
+
+test("renderer notification helpers recognize engine and terminal frames", async () => {
+  const {
+    engineEventFrom,
+    notificationType,
+    streamIdentifier
+  } = await import(`${moduleUrl}?frames=${Date.now()}`);
+  const engineFrame = {
+    version: 1,
+    type: "engine:event",
+    event: { sequence: 3, type: "session:status", id: "api" }
+  };
+
+  assert.deepEqual(engineEventFrom(engineFrame), engineFrame.event);
+  assert.equal(notificationType({ type: "terminal:data" }), "terminal:data");
+  assert.equal(streamIdentifier({ streamId: "stream-1" }), "stream-1");
+});
+
+test("worker form builds validated create definitions without weakening engine limits", async () => {
+  const { buildWorkerDefinition } = await import(`${workerFormUrl}?create=${Date.now()}`);
+  const definition = buildWorkerDefinition({
+    id: "api.dev",
+    name: "API dev server",
+    command: "npm",
+    argsText: '["run", "dev"]',
+    cwd: "./api",
+    envText: '{"PORT":"3000"}',
+    autoStart: false,
+    powershellCompatibility: true
+  });
+
+  assert.deepEqual(definition, {
+    id: "api.dev",
+    name: "API dev server",
+    command: "npm",
+    args: ["run", "dev"],
+    cwd: "./api",
+    env: { PORT: "3000" },
+    autoStart: false,
+    powershellCompatibility: true
+  });
+  assert.throws(
+    () => buildWorkerDefinition({ ...definition, argsText: "[]", envText: '{"PORT":3000}' }),
+    /Environment values must be strings/
+  );
+  assert.throws(
+    () => buildWorkerDefinition({ ...definition, id: "bad id", argsText: "[]", envText: "{}" }),
+    /Worker ID may use only/
+  );
+});
+
+test("worker edit patches preserve secret environment values unless replacement is explicit", async () => {
+  const { buildWorkerPatch, initialWorkerDraft } = await import(`${workerFormUrl}?edit=${Date.now()}`);
+  const draft = initialWorkerDraft({
+    id: "api",
+    name: "API",
+    command: "npm run dev",
+    args: [],
+    cwd: ".",
+    envKeys: ["TOKEN", "PORT"],
+    autoStart: true,
+    powershellCompatibility: false
+  });
+  const preserved = buildWorkerPatch(draft);
+  assert.equal(Object.hasOwn(preserved, "env"), false);
+  assert.equal(JSON.stringify(draft).includes("TOKEN"), false);
+
+  const replaced = buildWorkerPatch({
+    ...draft,
+    replaceEnvironment: true,
+    envText: '{"PORT":"4000"}'
+  });
+  assert.deepEqual(replaced.env, { PORT: "4000" });
+});
+
+test("terminal layouts support unique persisted 1, 2, 4, and 6-pane assignments", async () => {
+  const {
+    TERMINAL_LAYOUTS,
+    assignTerminalSlot,
+    normalizeTerminalLayout
+  } = await import(`${terminalLayoutUrl}?layout=${Date.now()}`);
+  const sessions = Array.from({ length: 7 }, (_, index) => ({ id: `worker-${index + 1}` }));
+  assert.deepEqual(TERMINAL_LAYOUTS.map(layout => layout.slots), [1, 2, 2, 4, 6]);
+
+  const six = normalizeTerminalLayout({
+    layoutId: "grid-3x2",
+    sessionIds: ["worker-3", "missing", "worker-3", "worker-1"]
+  }, sessions);
+  assert.equal(six.sessionIds.length, 6);
+  assert.deepEqual(six.sessionIds.slice(0, 4), ["worker-3", null, null, "worker-1"]);
+  assert.equal(new Set(six.sessionIds.filter(Boolean)).size, 4);
+  assert.equal(
+    new Set(normalizeTerminalLayout({ layoutId: "grid-3x2" }, sessions).sessionIds.filter(Boolean)).size,
+    6
+  );
+
+  const swapped = assignTerminalSlot(six, 0, six.sessionIds[4], sessions);
+  assert.equal(swapped.sessionIds[0], six.sessionIds[4]);
+  assert.equal(swapped.sessionIds[4], six.sessionIds[0]);
+  assert.equal(new Set(swapped.sessionIds.filter(Boolean)).size, 4);
+});
