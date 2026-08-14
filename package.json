@@ -1,0 +1,42 @@
+{
+  "name": "termctl-tui",
+  "version": "1.6.3",
+  "type": "module",
+  "description": "Mission Control — a local-first developer command center with a shared PTY engine, TUI, and Groundstation desktop client.",
+  "bin": {
+    "termctl": "./bin/termctl.js"
+  },
+  "main": "src/engine/index.cjs",
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "RELEASE_NOTES.md",
+    "WINDOWS_ACCEPTANCE.md",
+    "vite.groundstation.config.mjs",
+    "termctl.config.example.json"
+  ],
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "scripts": {
+    "start": "node bin/termctl.js",
+    "groundstation:build": "vite build --config vite.groundstation.config.mjs",
+    "groundstation": "npm run groundstation:build && electron src/groundstation/main/index.cjs",
+    "test": "node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "@openrouter/sdk": "^1.2.27",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "ink": "^4.4.1",
+    "ink-text-input": "^5.0.1",
+    "node-pty": "^1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "electron": "40.10.6",
+    "vite": "6.4.3"
+  }
+}
