@@ -185,6 +185,68 @@ class WorkspaceStore {
     return Array.isArray(this.raw.commands) ? [...this.raw.commands] : [];
   }
 
+  recipeDefinitions() {
+    return Array.isArray(this.raw.recipes) ? this.raw.recipes.map(recipe => JSON.parse(JSON.stringify(recipe))) : [];
+  }
+
+  missionDefinitions() {
+    return Array.isArray(this.raw.missions) ? this.raw.missions.map(mission => JSON.parse(JSON.stringify(mission))) : [];
+  }
+
+  attentionDefinitions() {
+    return Array.isArray(this.raw.attention) ? this.raw.attention.map(item => JSON.parse(JSON.stringify(item))) : [];
+  }
+
+  attentionPreferences() {
+    const value = isPlainObject(this.raw.attentionPreferences) ? this.raw.attentionPreferences : {};
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  upsertAttention(record) {
+    const nextRaw = this._nextRaw();
+    nextRaw.attention = this.attentionDefinitions();
+    const index = nextRaw.attention.findIndex(item => item?.id === record.id);
+    if (index === -1) nextRaw.attention.unshift(JSON.parse(JSON.stringify(record)));
+    else nextRaw.attention[index] = JSON.parse(JSON.stringify(record));
+    nextRaw.attention = nextRaw.attention.slice(0, 200);
+    this._commit(nextRaw);
+  }
+
+  setAttentionPreferences(preferences) {
+    const nextRaw = this._nextRaw();
+    nextRaw.attentionPreferences = JSON.parse(JSON.stringify(preferences));
+    this._commit(nextRaw);
+  }
+
+  upsertMission(mission) {
+    const nextRaw = this._nextRaw();
+    nextRaw.missions = this.missionDefinitions();
+    const index = nextRaw.missions.findIndex(item => item?.id === mission.id);
+    if (index === -1) nextRaw.missions.unshift(JSON.parse(JSON.stringify(mission)));
+    else nextRaw.missions[index] = JSON.parse(JSON.stringify(mission));
+    nextRaw.missions = nextRaw.missions.slice(0, 100);
+    this._commit(nextRaw);
+  }
+
+  upsertRecipe(recipe) {
+    const nextRaw = this._nextRaw();
+    nextRaw.recipes = Array.isArray(this.raw.recipes) ? this.recipeDefinitions() : [];
+    const index = nextRaw.recipes.findIndex(item => item?.id === recipe.id);
+    if (index === -1) nextRaw.recipes.unshift(JSON.parse(JSON.stringify(recipe)));
+    else nextRaw.recipes[index] = JSON.parse(JSON.stringify(recipe));
+    nextRaw.recipes = nextRaw.recipes.slice(0, 20);
+    this._commit(nextRaw);
+  }
+
+  removeRecipe(id) {
+    const nextRaw = this._nextRaw();
+    const recipes = Array.isArray(this.raw.recipes) ? this.recipeDefinitions() : [];
+    nextRaw.recipes = recipes.filter(recipe => recipe?.id !== id);
+    if (nextRaw.recipes.length === recipes.length) return false;
+    this._commit(nextRaw);
+    return true;
+  }
+
   getDefinition(id) {
     const definition = this.raw.sessions.find(item => item && item.id === id);
     return isPlainObject(definition) ? { ...definition } : null;
@@ -304,6 +366,18 @@ function openWorkspace(filePath) {
   if (!Array.isArray(raw.sessions)) throw new WorkspaceConfigError("workspace sessions must be an array");
   if (raw.commands !== undefined && !Array.isArray(raw.commands)) {
     throw new WorkspaceConfigError("workspace commands must be an array");
+  }
+  if (raw.recipes !== undefined && !Array.isArray(raw.recipes)) {
+    throw new WorkspaceConfigError("workspace recipes must be an array");
+  }
+  if (raw.missions !== undefined && !Array.isArray(raw.missions)) {
+    throw new WorkspaceConfigError("workspace missions must be an array");
+  }
+  if (raw.attention !== undefined && !Array.isArray(raw.attention)) {
+    throw new WorkspaceConfigError("workspace attention must be an array");
+  }
+  if (raw.attentionPreferences !== undefined && !isPlainObject(raw.attentionPreferences)) {
+    throw new WorkspaceConfigError("workspace attentionPreferences must be an object");
   }
 
   if (raw.version === undefined) raw.version = WORKSPACE_VERSION;

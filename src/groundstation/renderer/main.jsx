@@ -4,6 +4,8 @@ import "@xterm/xterm/css/xterm.css";
 import App from "./App.jsx";
 import "./styles.css";
 
+document.documentElement.lang = navigator.language || "en";
+
 createRoot(document.getElementById("root")).render(
   // Groundstation effects own explicit IPC terminal subscriptions. React's
   // development-only StrictMode remount would open a second stream before the

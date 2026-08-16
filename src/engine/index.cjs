@@ -10,6 +10,30 @@ const { openActivityStore } = require("./activityStore.cjs");
 const ENGINE_CONTRACT_VERSION = 1;
 const MAX_ACTIVITY_EVENTS = 200;
 const ACTIVITY_PERSIST_DELAY_MS = 50;
+const RECIPE_LIMIT = 20;
+
+function normalizeRecipe(value, sessionIds) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("recipe must be an object");
+  const id = String(value.id || "").trim();
+  const name = String(value.name || "").trim();
+  if (!id || !/^[A-Za-z0-9._-]{1,80}$/.test(id)) throw new TypeError("recipe id is invalid");
+  if (!name || name.length > 60) throw new TypeError("recipe name is invalid");
+  const suppliedSteps = Array.isArray(value.steps) ? value.steps : (value.workerIds || []).map((workerId, index, list) => ({ workerId, dependsOn: index ? [list[index - 1]] : [] }));
+  if (!suppliedSteps.length || suppliedSteps.length > 50) throw new TypeError("recipe must contain 1 to 50 steps");
+  const steps = suppliedSteps.map(step => {
+    const workerId = String(step?.workerId || "");
+    if (!sessionIds.has(workerId)) throw new TypeError(`recipe worker is missing: ${workerId}`);
+    const dependsOn = Array.isArray(step.dependsOn) ? [...new Set(step.dependsOn.map(String))] : [];
+    if (dependsOn.includes(workerId) || dependsOn.some(id => !sessionIds.has(id))) throw new TypeError(`recipe dependencies are invalid for: ${workerId}`);
+    return { workerId, dependsOn, readiness: ["running", "service", "tests", "healthy"].includes(step.readiness) ? step.readiness : "running" };
+  });
+  const workerIds = steps.map(step => step.workerId);
+  if (new Set(workerIds).size !== workerIds.length) throw new TypeError("recipe workers must be unique");
+  for (const step of steps) if (step.dependsOn.some(id => !workerIds.includes(id))) throw new TypeError(`dependency is not part of recipe: ${step.workerId}`);
+  return { id, name, steps, workerIds, layoutId: String(value.layoutId || "grid-2x2"), sessionIds: Array.isArray(value.sessionIds) ? value.sessionIds.slice(0, 6) : [], failurePolicy: value.failurePolicy === "continue" ? "continue" : "stop", readinessTimeoutMs: Number.isInteger(value.readinessTimeoutMs) ? Math.min(60000, Math.max(1000, value.readinessTimeoutMs)) : 10000, updatedAt: Date.now() };
+}
+
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 const ENGINE_EVENTS = Object.freeze([
   "session:created",
@@ -18,6 +42,7 @@ const ENGINE_EVENTS = Object.freeze([
   "session:exit",
   "session:spawn-error",
   "session:supervision",
+  "session:evidence",
   "session:renamed",
   "session:autostart",
   "session:reconfigured",
@@ -50,6 +75,11 @@ class EngineAPI extends EventEmitter {
   #activityDirty;
   #reportingActivityPersistError;
   #lastActivityPersistError;
+  #recipes;
+  #recipeRuns;
+  #missions;
+  #attentionRecords;
+  #attentionPreferences;
 
   constructor(options = {}) {
     super();
@@ -84,10 +114,16 @@ class EngineAPI extends EventEmitter {
     this.#activityDirty = false;
     this.#reportingActivityPersistError = false;
     this.#lastActivityPersistError = null;
+    this.#recipes = new Map();
+    this.#recipeRuns = new Map();
+    this.#missions = new Map();
+    this.#attentionRecords = new Map();
+    this.#attentionPreferences = { minimumSeverity: "info", desktopNotifications: true, quietHours: { enabled: false, start: "22:00", end: "07:00" } };
 
     for (const type of ENGINE_EVENTS) {
       const listener = payload => {
         this.#publish(type, payload);
+        if (type === "session:evidence") this.#captureMissionEvidence(payload);
       };
       this.#sessionEngine.on(type, listener);
       this.#engineBindings.push([type, listener]);
@@ -127,6 +163,26 @@ class EngineAPI extends EventEmitter {
     if (!Array.isArray(sessionDefinitions)) throw new Error("workspace sessions must be an array");
     if (!Array.isArray(commandDefinitions)) throw new Error("workspace commands must be an array");
     this.#projectLoaded = true;
+
+    for (const mission of this.#workspaceStore?.missionDefinitions?.() || []) {
+      if (mission?.id && mission?.agentId && mission?.title) this.#missions.set(mission.id, mission);
+    }
+    for (const record of this.#workspaceStore?.attentionDefinitions?.() || []) {
+      if (record?.id && record?.sessionId) this.#attentionRecords.set(record.id, record);
+    }
+    this.#attentionPreferences = { ...this.#attentionPreferences, ...(this.#workspaceStore?.attentionPreferences?.() || {}) };
+
+    const recipeIds = new Set();
+    for (const recipe of this.#workspaceStore?.recipeDefinitions?.() || []) {
+      try {
+        const normalized = normalizeRecipe(recipe, new Set(sessionDefinitions.map(item => item?.id).filter(Boolean)));
+        if (recipeIds.has(normalized.id)) throw new Error(`recipe id already in use: ${normalized.id}`);
+        recipeIds.add(normalized.id);
+        this.#recipes.set(normalized.id, normalized);
+      } catch (error) {
+        this.#publish("project:recipe-error", { id: recipe?.id || null, error: error.message });
+      }
+    }
 
     const commandErrors = [];
     for (const def of commandDefinitions) {
@@ -200,6 +256,217 @@ class EngineAPI extends EventEmitter {
       savedCommandCount: this.#savedCommands.size,
       savedCommandErrorCount: this.#savedCommandErrors.length
     };
+  }
+
+  listIntegrations() {
+    const workspace = this.getWorkspace();
+    return [
+      { id: "vscode", name: "VS Code Bridge", status: "available", capability: "Open the active project and focus worker-owned files", permission: "Local editor launch", projectRequired: true, enabled: false },
+      { id: "assistant", name: "Assistant Gateway", status: "foundation", capability: "Expose bounded project context through an MCP-style contract", permission: "Read-only by default; every mutation requires approval", projectRequired: true, enabled: false },
+      { id: "plugins", name: "Plugin Runtime", status: "planned", capability: "Install signed, permission-scoped worker integrations", permission: "Manifest allow-list and isolated process", projectRequired: false, enabled: false },
+      { id: "mobile", name: "Mobile Companion", status: "planned", capability: "Review alerts and approve bounded actions away from the workstation", permission: "Pairing code and revocable device trust", projectRequired: true, enabled: false }
+    ].map(item => ({ ...item, blockedReason: item.projectRequired && !workspace.persistent ? "Open a project folder first" : null }));
+  }
+
+  listRecipes() {
+    return [...this.#recipes.values()].map(recipe => ({ ...recipe, steps: recipe.steps.map(step => ({ ...step, dependsOn: [...step.dependsOn] })), run: this.#recipeRuns.has(recipe.id) ? { ...this.#recipeRuns.get(recipe.id), completed: [...this.#recipeRuns.get(recipe.id).completed] } : null }));
+  }
+
+  listMissions() {
+    return [...this.#missions.values()].map(mission => JSON.parse(JSON.stringify(mission)));
+  }
+
+  listAttention() {
+    const now = Date.now();
+    const activeSessionIds = new Set();
+    for (const session of this.#sessionEngine.list()) {
+      const snapshot = this.getSnapshot(session.id);
+      if (!snapshot || (!snapshot.attentionRequired && snapshot.status !== "failed")) continue;
+      activeSessionIds.add(snapshot.id);
+      let record = [...this.#attentionRecords.values()].find(item => item.sessionId === snapshot.id && item.state !== "recovered");
+      if (!record) {
+        const reason = snapshot.attentionReason || (snapshot.status === "failed" ? "Worker failed" : "Operator decision required");
+        const groupKey = `${snapshot.status === "failed" ? "failure" : snapshot.id.startsWith("agent-") ? "agent" : "attention"}:${String(reason).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").slice(0, 4).join("-")}`;
+        record = { id: `attention-${snapshot.id}-${now}`, sessionId: snapshot.id, sessionName: snapshot.name, state: "new", severity: snapshot.status === "failed" ? "critical" : snapshot.id.startsWith("agent-") ? "warning" : "info", groupKey, reason, createdAt: snapshot.attentionSince || now, updatedAt: now, snoozedUntil: null, history: [{ state: "new", at: now }] };
+        this.#attentionRecords.set(record.id, record);
+        try { this.#workspaceStore?.upsertAttention(record); } catch { /* Live attention remains available if persistence fails. */ }
+      }
+    }
+    for (const record of this.#attentionRecords.values()) {
+      if (record.state !== "recovered" && !activeSessionIds.has(record.sessionId)) {
+        record.state = "recovered"; record.updatedAt = now; record.recoveredAt = now;
+        record.history = [...(record.history || []), { state: "recovered", at: now }].slice(-20);
+        try { this.#workspaceStore?.upsertAttention(record); } catch { /* Best effort persistence. */ }
+      }
+    }
+    return { records: [...this.#attentionRecords.values()].sort((a, b) => b.updatedAt - a.updatedAt).map(item => JSON.parse(JSON.stringify(item))), preferences: JSON.parse(JSON.stringify(this.#attentionPreferences)) };
+  }
+
+  transitionAttention(id, state, options = {}) {
+    if (!this.#workspaceStore) return { ok: false, error: "attention lifecycle requires a persistent project workspace" };
+    const record = this.#attentionRecords.get(String(id));
+    if (!record) return { ok: false, error: "attention record not found" };
+    if (!["new", "seen", "acting", "verifying", "recovered"].includes(state)) return { ok: false, error: "attention state is invalid" };
+    const snapshot = this.getSnapshot(record.sessionId);
+    if (state === "recovered" && (snapshot?.attentionRequired || snapshot?.status === "failed")) return { ok: false, error: "engine has not verified recovery" };
+    record.state = state; record.updatedAt = Date.now();
+    record.snoozedUntil = Number(options.snoozedUntil) > Date.now() ? Number(options.snoozedUntil) : null;
+    record.history = [...(record.history || []), { state, at: record.updatedAt }].slice(-20);
+    try { this.#workspaceStore.upsertAttention(record); } catch (error) { return { ok: false, error: error.message }; }
+    this.#publish("attention:lifecycle", { attentionId: record.id, sessionId: record.sessionId, state });
+    return { ok: true, record: JSON.parse(JSON.stringify(record)) };
+  }
+
+  saveAttentionPreferences(value) {
+    if (!this.#workspaceStore) return { ok: false, error: "attention preferences require a persistent project workspace" };
+    const minimumSeverity = ["info", "warning", "critical"].includes(value?.minimumSeverity) ? value.minimumSeverity : "info";
+    const time = input => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(input || "")) ? String(input) : null;
+    const quietHours = { enabled: value?.quietHours?.enabled === true, start: time(value?.quietHours?.start) || "22:00", end: time(value?.quietHours?.end) || "07:00" };
+    this.#attentionPreferences = { minimumSeverity, desktopNotifications: value?.desktopNotifications !== false, quietHours };
+    try { this.#workspaceStore.setAttentionPreferences(this.#attentionPreferences); } catch (error) { return { ok: false, error: error.message }; }
+    this.#publish("attention:preferences", this.#attentionPreferences);
+    return { ok: true, preferences: JSON.parse(JSON.stringify(this.#attentionPreferences)) };
+  }
+
+  saveMission(value) {
+    if (!this.#workspaceStore) return { ok: false, error: "durable missions require a persistent project workspace" };
+    const agentId = String(value?.agentId || "");
+    const title = String(value?.title || "").trim();
+    if (!agentId.startsWith("agent-") || !this.getSnapshot(agentId)) return { ok: false, error: "mission agent is invalid" };
+    if (!title || title.length > 240) return { ok: false, error: "mission title is invalid" };
+    const scopes = [...new Set((Array.isArray(value.scopes) ? value.scopes : ["read"]).filter(scope => ["read", "write", "execute", "network"].includes(scope)))];
+    const existing = [...this.#missions.values()].find(mission => mission.agentId === agentId && mission.status === "active");
+    const mission = { id: existing?.id || `mission-${Date.now()}-${agentId.slice(-8)}`, agentId, title, scopes: scopes.length ? scopes : ["read"], status: value.status === "completed" ? "completed" : "active", createdAt: existing?.createdAt || Date.now(), updatedAt: Date.now(), evidence: existing?.evidence || [] };
+    try { this.#workspaceStore.upsertMission(mission); } catch (error) { return { ok: false, error: error.message }; }
+    this.#missions.set(mission.id, mission);
+    this.#publish("mission:saved", { missionId: mission.id, agentId, status: mission.status, scopes: mission.scopes });
+    return { ok: true, mission: JSON.parse(JSON.stringify(mission)) };
+  }
+
+  #captureMissionEvidence(payload) {
+    const mission = [...this.#missions.values()].find(item => item.agentId === payload.id && item.status === "active");
+    if (!mission || !payload.evidence) return;
+    const category = payload.category;
+    const type = category === "git" ? "diff" : category === "tests" ? "test" : category === "build" ? "result" : category;
+    const record = { id: `${mission.id}:${Date.now()}:${category}`, type, category, at: Date.now(), facts: JSON.parse(JSON.stringify(payload.evidence)) };
+    if (category === "git") record.file = { changedPaths: payload.evidence.changedPaths || 0, branch: payload.evidence.branch || null };
+    mission.evidence = [...mission.evidence.slice(-99), record];
+    mission.updatedAt = Date.now();
+    try { this.#workspaceStore?.upsertMission(mission); } catch { return; }
+    this.#publish("mission:evidence", { missionId: mission.id, agentId: mission.agentId, evidenceType: type, category });
+  }
+
+  recordMissionInstruction(agentId, metadata = {}) {
+    const mission = [...this.#missions.values()].find(item => item.agentId === agentId && item.status === "active");
+    if (!mission) return { ok: false, error: "agent has no active mission" };
+    const requestedScopes = [...new Set((metadata.requestedScopes || []).filter(scope => ["read", "write", "execute", "network"].includes(scope)))];
+    const denied = requestedScopes.filter(scope => !mission.scopes.includes(scope));
+    if (denied.length) return { ok: false, error: `mission does not allow: ${denied.join(", ")}` };
+    const record = { id: `${mission.id}:${Date.now()}:command`, type: "command", at: Date.now(), facts: { instructionLength: Math.min(100000, Number(metadata.instructionLength) || 0), requestedScopes } };
+    mission.evidence = [...mission.evidence.slice(-99), record]; mission.updatedAt = Date.now();
+    try { this.#workspaceStore?.upsertMission(mission); } catch (error) { return { ok: false, error: error.message }; }
+    this.#publish("mission:evidence", { missionId: mission.id, agentId, evidenceType: "command" });
+    return { ok: true };
+  }
+
+  saveRecipe(value) {
+    if (!this.#workspaceStore) return { ok: false, error: "shared recipes require a persistent project workspace" };
+    let recipe;
+    try { recipe = normalizeRecipe(value, new Set(this.#sessionEngine.list().map(session => session.id))); }
+    catch (error) { return { ok: false, error: error.message }; }
+    if (!this.#recipes.has(recipe.id) && this.#recipes.size >= RECIPE_LIMIT) return { ok: false, error: `workspace recipe limit is ${RECIPE_LIMIT}` };
+    try { this.#workspaceStore.upsertRecipe(recipe); }
+    catch (error) { return { ok: false, error: error.message }; }
+    this.#recipes.set(recipe.id, recipe);
+    this.#publish("recipe:saved", { recipeId: recipe.id, name: recipe.name });
+    return { ok: true, recipe };
+  }
+
+  deleteRecipe(id) {
+    if (!this.#workspaceStore) return { ok: false, error: "shared recipes require a persistent project workspace" };
+    try {
+      if (!this.#workspaceStore.removeRecipe(id)) return { ok: false, error: `no such recipe: ${id}` };
+    } catch (error) { return { ok: false, error: error.message }; }
+    this.#recipes.delete(id);
+    this.#recipeRuns.delete(id);
+    this.#publish("recipe:deleted", { recipeId: id });
+    return { ok: true };
+  }
+
+  #recipeReady(session, mode) {
+    if (!session) return false;
+    if (mode === "running") return session.status === "running";
+    if (mode === "service") return session.evidence?.service?.ready === true;
+    if (mode === "tests") return Number.isInteger(session.evidence?.tests?.passed) && session.evidence.tests.failed === 0;
+    return session.evidence?.container?.healthy === true || session.evidence?.database?.ready === true || session.evidence?.service?.ready === true;
+  }
+
+  async #executeRecipe(recipe, run) {
+    for (const step of recipe.steps) {
+      while (run.phase === "paused") await wait(50);
+      if (run.phase === "cancelled") return;
+      if (!step.dependsOn.every(id => run.completed.includes(id))) {
+        run.failures.push({ workerId: step.workerId, reason: "dependency did not become ready" });
+        if (recipe.failurePolicy === "stop") break;
+        continue;
+      }
+      run.currentWorkerId = step.workerId;
+      this.#publish("recipe:step", { recipeId: recipe.id, runId: run.runId, workerId: step.workerId, phase: "starting" });
+      const snapshot = this.getSnapshot(step.workerId);
+      if (!snapshot?.isAlive) {
+        const started = this.start(step.workerId);
+        const result = started && typeof started.then === "function" ? await started : started;
+        if (!result?.ok) {
+          run.failures.push({ workerId: step.workerId, reason: result?.error || "worker failed to start" });
+          if (recipe.failurePolicy === "stop") break;
+          continue;
+        }
+      }
+      const deadline = Date.now() + recipe.readinessTimeoutMs;
+      while (!this.#recipeReady(this.getSnapshot(step.workerId), step.readiness) && Date.now() < deadline) {
+        while (run.phase === "paused") await wait(50);
+        await wait(50);
+      }
+      if (!this.#recipeReady(this.getSnapshot(step.workerId), step.readiness)) {
+        run.failures.push({ workerId: step.workerId, reason: `${step.readiness} readiness timed out` });
+        if (recipe.failurePolicy === "stop") break;
+      } else {
+        run.completed.push(step.workerId);
+        this.#publish("recipe:step", { recipeId: recipe.id, runId: run.runId, workerId: step.workerId, phase: "ready", readiness: step.readiness });
+      }
+    }
+    run.phase = run.failures.length ? "failed" : "completed";
+    run.currentWorkerId = null;
+    run.finishedAt = Date.now();
+    this.#publish("recipe:run", { recipeId: recipe.id, runId: run.runId, phase: run.phase, completedCount: run.completed.length, failureCount: run.failures.length });
+  }
+
+  runRecipe(id) {
+    const recipe = this.#recipes.get(id);
+    if (!recipe) return { ok: false, error: `no such recipe: ${id}` };
+    const active = this.#recipeRuns.get(id);
+    if (active && ["running", "paused"].includes(active.phase)) return { ok: false, error: "recipe is already active" };
+    const run = { runId: `${id}:${Date.now()}`, recipeId: id, phase: "running", completed: [], failures: [], currentWorkerId: null, startedAt: Date.now(), finishedAt: null };
+    this.#recipeRuns.set(id, run);
+    this.#publish("recipe:run", { recipeId: id, runId: run.runId, phase: "running", completedCount: 0, failureCount: 0 });
+    void this.#executeRecipe(recipe, run);
+    return { ok: true, run: { ...run, completed: [] } };
+  }
+
+  pauseRecipe(id) {
+    const run = this.#recipeRuns.get(id);
+    if (!run || run.phase !== "running") return { ok: false, error: "recipe is not running" };
+    run.phase = "paused";
+    this.#publish("recipe:run", { recipeId: id, runId: run.runId, phase: "paused", completedCount: run.completed.length, failureCount: run.failures.length });
+    return { ok: true };
+  }
+
+  resumeRecipe(id) {
+    const run = this.#recipeRuns.get(id);
+    if (!run || run.phase !== "paused") return { ok: false, error: "recipe is not paused" };
+    run.phase = "running";
+    this.#publish("recipe:run", { recipeId: id, runId: run.runId, phase: "running", completedCount: run.completed.length, failureCount: run.failures.length });
+    return { ok: true };
   }
 
   create(definition) {
@@ -363,6 +630,37 @@ class EngineAPI extends EventEmitter {
       ),
       hasMore: afterSequence !== null && available.length > selected.length,
       events: selected.map(event => this.#cloneContractValue(event))
+    };
+  }
+
+  getProjectMemory(options = {}) {
+    const afterSequence = Number.isInteger(options.afterSequence) && options.afterSequence >= 0 ? options.afterSequence : 0;
+    const events = this.#activityEvents;
+    const since = events.filter(event => event.sequence > afterSequence);
+    const isFailure = event => /failed|error|spawn-error/i.test(String(event.type)) || event.status === "failed" || event.evidence?.status === "failed" || Number(event.evidence?.failed) > 0;
+    const isRecovery = event => /started|created|evidence|status|supervision/i.test(String(event.type)) && !isFailure(event) && (event.status === "running" || event.attentionRequired === false || event.evidence?.ready === true || event.evidence?.healthy === true || event.evidence?.failed === 0);
+    const groups = new Map();
+    for (const event of events) {
+      if (!event.correlationId) continue;
+      const group = groups.get(event.correlationId) || { correlationId: event.correlationId, sessionId: event.id || event.sessionId || null, actor: event.name || event.id || event.sessionId || "Worker", events: [], failedAt: null, recoveredAt: null };
+      group.events.push({ sequence: event.sequence, type: event.type, timestamp: event.timestamp, reason: event.reason || null });
+      if (isFailure(event) && !group.failedAt) group.failedAt = event.timestamp;
+      if (group.failedAt && isRecovery(event) && event.timestamp >= group.failedAt) group.recoveredAt = event.timestamp;
+      groups.set(event.correlationId, group);
+    }
+    const chapters = [...groups.values()].filter(group => group.failedAt).map(group => ({ ...group, state: group.recoveredAt ? "recovered" : "unresolved", eventCount: group.events.length })).sort((a, b) => b.failedAt - a.failedAt).slice(0, 20);
+    const risks = since.filter(isFailure);
+    const evidence = since.filter(event => event.type === "session:evidence");
+    const actors = new Set(since.map(event => event.name || event.id || event.sessionId).filter(Boolean));
+    const why = risks.slice(-5).reverse().map(event => ({ sequence: event.sequence, actor: event.name || event.id || event.sessionId || "Workspace", statement: event.reason || `${String(event.type).replaceAll(":", " ")} was recorded by the engine`, correlationId: event.correlationId || null }));
+    return {
+      generatedAt: Date.now(),
+      afterSequence,
+      latestSequence: this.#eventSequence,
+      since: { eventCount: since.length, riskCount: risks.length, evidenceCount: evidence.length, actorCount: actors.size, summary: since.length ? `${since.length} recorded changes across ${actors.size || 1} actor${actors.size === 1 ? "" : "s"}; ${risks.length} require review and ${evidence.length} contain structured evidence.` : "No engine-recorded changes since your last review." },
+      why,
+      chapters,
+      current: this.list().map(session => ({ id: session.id, name: session.name, status: session.status, isAlive: session.isAlive, attentionRequired: session.attentionRequired, lastOutputAt: session.lastOutputAt }))
     };
   }
 
@@ -788,6 +1086,10 @@ class EngineAPI extends EventEmitter {
     this.#sessionOperations.clear();
     this.#savedCommands.clear();
     this.#savedCommandErrors = [];
+    for (const run of this.#recipeRuns.values()) run.phase = "cancelled";
+    this.#recipeRuns.clear();
+    this.#recipes.clear();
+    this.#missions.clear();
     this.#activityEvents = [];
     if (this.#activityPersistTimer) clearTimeout(this.#activityPersistTimer);
     this.#activityPersistTimer = null;

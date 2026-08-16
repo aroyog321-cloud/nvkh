@@ -1,3 +1,10 @@
+# Mission Control 1.6.3 — Workspace Recipes
+
+- Adds project-local workspace recipes for named daily working sets.
+- Captures worker selection, explicit startup priority, terminal layout, and pane assignments.
+- Launches idle workers sequentially through the existing EngineAPI and reports partial failures.
+- Restores the saved terminal canvas atomically and exposes recipes in Workspace, the mission bar, and Mission Command.
+
 # Mission Control 1.6.1 — Worker Focus and Agent Start Reliability
 
 ## Worker and agent workflow refinements
@@ -512,3 +519,90 @@ here.
 - Adds an operational crew summary to Agents while preserving the fixed, allow-listed CLI adapter boundary.
 - Defaults new workers to an auto-started `powershell.exe` command, creating an immediately usable empty PowerShell terminal on Windows.
 - Preserves EngineAPI, Protocol v1, PTY ownership, recovery, and agent command safety.
+# Unreleased — Trust-first Groundstation
+
+- Upgrades Mission Command from substring filtering to scored fuzzy matching across
+  labels, groups, and explicit aliases.
+- Persists the eight most recent commands locally and uses recency as a ranking boost;
+  exact and prefix matches still outrank recency.
+- Adds developer-language aliases for attention, history, agents, project switching,
+  appearance, focus, workspace launch, and workspace shutdown.
+- Improves no-result guidance and labels recent commands without changing the safety or
+  execution path of any operation.
+- Adds a per-project “Since You Last Checked” briefing on Groundstation using durable
+  activity sequence numbers and a local review cursor.
+- The briefing reports new meaningful-event count, recorded risk count, affected
+  workers, and the latest event, with Review Memory and Mark Reviewed actions.
+- Opening History advances only the local cursor; it does not mutate, acknowledge, or
+  delete engine-owned activity. First use establishes a quiet baseline instead of
+  presenting all retained history as new.
+- Adds true hold-Space Worker Quick Look on Groundstation. The transient preview keeps
+  users in context while showing worker role, state, command, working directory,
+  restore policy, last output, recent lifecycle evidence, and direct start/restart or
+  terminal actions.
+- Keeps Select, Quick Look, Focus, and Open Terminal as distinct interactions and adds
+  visible usage hints to the live project scene.
+- Mission Command now prioritizes contextual inspect/conversation and acknowledgement
+  actions for the selected worker.
+- Adds daily workspace controls to start every idle worker or stop every running
+  worker from the Workspace toolbar and Mission Command.
+- Bulk lifecycle actions run concurrently, refresh state once, summarize partial
+  failures by worker, and use one contextual confirmation before stopping the
+  workspace. Worker definitions remain available for the next launch.
+- Adds a compact Groundstation Needs You shelf that appears only when decisions exist,
+  previews the two highest-current engine attention items, and routes agents to their
+  conversations and failed workers to restart/inspection actions.
+- Redesigns the full Needs You queue around decision kind, exact engine evidence,
+  operational impact, recommended action, and explicit acknowledgement semantics.
+- Adds per-agent mission context stored locally in the renderer. The first instruction
+  becomes the mission when none is set, and users can refine it without changing CLI
+  authentication, engine state, or workspace configuration.
+- Adds Project Memory search across event type, worker, session, operation, and reason;
+  event descriptions now prefer reported reasons and explicitly avoid claiming causal
+  links the engine did not provide.
+- Replaces the clipped one-agent footer menu with a full, keyboard-dismissable
+  add-agent dialog that remains available from both the workforce rail and the active
+  conversation header after any number of agents have been created.
+- The redesigned chooser shows installation state, existing instance counts, parallel
+  agent support, authentication/safety context, and explicit per-adapter start actions.
+- The workforce rail now reports active and total agents, and agent attention can be
+  acknowledged without leaving the conversation workspace.
+- Fixes Windows agent startup for npm-installed CLIs by resolving allow-listed
+  commands on PATH and launching `.cmd`/`.bat` shims through `cmd.exe`; native
+  executables continue to launch directly.
+- Agent availability is now reported by `agents.list`. The add-agent chooser disables
+  missing CLIs with an actionable explanation instead of creating a worker guaranteed
+  to fail.
+- Replaces the ambiguous one-click “+ Add agent” behavior with an explicit adapter
+  chooser, clearer checking/starting/error notices, retry treatment, and friendly
+  display of wrapped Windows commands.
+- Coalesces rapid agent output chunks into readable conversation turns while retaining
+  the bounded transcript limit.
+- Replaces AI-agent history-first opening with a dedicated Workforce conversation
+  workspace inspired by the supplied reference: agent roster, current state, live
+  transcript, session summary, terminal escape hatch, and persistent instruction box.
+- Agent instructions are written only to the selected agent's existing engine-owned
+  PTY through Protocol v1; no API keys, arbitrary executables, or cloud credentials
+  enter renderer state.
+- Agent output is streamed into a bounded, ANSI-cleaned conversation transcript with
+  clear previous-output labeling, connection state, send errors, and responsive layouts.
+- Selecting or focusing an AI worker now opens its conversation workspace instead of
+  the generic worker-history dialog.
+- Reduces the daily navigation rail to Groundstation, Workspace, Needs You, and
+  History; Agents, Projects, and Settings remain available contextually and through
+  Mission Command.
+- Replaces the synthetic Project Pulse score with explainable Healthy, Ready,
+  Waiting on You, and Degraded states derived from existing engine facts.
+- Groups the Groundstation scene by inferred operational worker role while preserving
+  the existing engine-owned worker and PTY model.
+- Replaces fixed AI-agent completion percentages and generic risk claims with reported
+  phase, output recency, attention, and engine state.
+- Clarifies that acknowledgement clears an alert rather than proving recovery, and
+  adds impact and recovery actions to Needs You items.
+- Implements real Up/Down/Enter Mission Command navigation, active descendant
+  semantics, contextual restart actions, and an empty-result state.
+- Replaces native stop, remove, and project-switch confirmations with an accessible
+  in-app confirmation dialog that explains consequence and recovery.
+- Raises default operational typography and removes decorative idle status animation.
+- Adds a detailed product and implementation roadmap in
+  `MISSION_CONTROL_PRODUCT_PLAN.md`.

@@ -18,51 +18,135 @@ test("Groundstation product experience keeps the intentional navigation and Miss
     path.resolve(__dirname, "../src/groundstation/renderer/App.jsx"),
     "utf8"
   );
+  const workerDialogSource = require("node:fs").readFileSync(
+    path.resolve(__dirname, "../src/groundstation/renderer/WorkerDialog.jsx"),
+    "utf8"
+  );
 
-  for (const section of [
-    "Groundstation",
-    "Workspace",
-    "Needs You",
-    "Agents",
-    "History",
-    "Projects",
-    "Settings"
-  ]) {
+  for (const section of ["Groundstation", "Workspace", "Needs You", "History"]) {
     assert.match(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${section}\\\"`));
+  }
+  for (const destination of ["Manage AI agents", "Switch project", "Open settings"]) {
+    assert.match(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${destination}\\\"`));
   }
   for (const removedPrimaryPage of ["Overview", "Terminals", "Activity", "Logs"] ) {
     assert.doesNotMatch(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${removedPrimaryPage}\\\"`));
   }
   assert.match(appSource, /event\.ctrlKey \|\| event\.metaKey/);
   assert.match(appSource, /event\.key\.toLowerCase\(\) === "k"/);
+  assert.match(appSource, /event\.key\.toLowerCase\(\) === "n"/);
+  assert.match(appSource, /Alt G/);
+  assert.match(workerDialogSource, /QUICK START/);
+  assert.match(workerDialogSource, /Frontend dev/);
+  assert.match(workerDialogSource, /Docker stack/);
+  assert.match(workerDialogSource, /Git status/);
   assert.match(appSource, /PROJECT PULSE/);
-  assert.match(appSource, /WORKER CANVAS/);
+  assert.match(appSource, /AttentionShelf/);
+  assert.match(appSource, /decisionFor/);
+  assert.match(appSource, /Evidence/);
+  assert.match(appSource, /Restart & verify/);
+  assert.match(appSource, /LIVE PROJECT SCENE/);
+  assert.match(appSource, /YOUR CONTROL DECK/);
+  assert.match(appSource, /Terminal wall/);
   assert.match(appSource, /MISSION COMMAND/);
-  assert.match(appSource, /CONTEXT INSPECTOR/);
+  assert.match(appSource, /WORKER INTELLIGENCE/);
+  assert.match(appSource, /SOURCE CONTROL/);
+  assert.match(appSource, /working tree clean/);
+  assert.match(appSource, /gitChanges/);
   assert.match(appSource, /LIVE AGENTS/);
-  assert.match(appSource, /DOCKER OPERATIONS/);
-  assert.match(appSource, /WORKER QUICK LOOK/);
   assert.match(appSource, /WORKER FOCUS/);
-  assert.match(appSource, /Workspace operations summary/);
-  assert.match(appSource, /WORKER WORKSTATION/);
-  assert.match(appSource, /Choose a worker/);
+  assert.match(appSource, /QUICK LOOK · HOLD SPACE/);
+  assert.match(appSource, /event\.code !== "Space"/);
+  assert.match(appSource, /Release Space to close/);
+  assert.match(appSource, /TERMINAL WORKSPACE/);
+  assert.match(appSource, /CANVAS LAYOUT/);
+  assert.match(appSource, /Add terminal worker/);
+  assert.match(appSource, /Create worker/);
+  assert.match(appSource, /pendingWorkspaceWorker/);
+  assert.match(appSource, /added to the terminal workspace/);
+  assert.match(appSource, /Start all idle workers/);
+  assert.match(appSource, /Stop all running workers/);
+  assert.match(appSource, /Stop workspace/);
+  assert.match(appSource, /executeBulk/);
+  assert.match(appSource, /Selected worker/);
+  assert.match(appSource, /Choose existing/);
   assert.match(appSource, /Restarting…/);
   assert.doesNotMatch(appSource, /<select/);
   assert.match(appSource, /What is happening/);
+  assert.match(appSource, /function nowSummary/);
+  assert.match(appSource, /className="now-summary"/);
   assert.match(appSource, /Terminal history/);
-  assert.match(appSource, /View history & summary/);
-  assert.match(appSource, /View agent history/);
+  assert.match(appSource, /Open conversation/);
   assert.match(appSource, /Add agent/);
   assert.match(appSource, /onNavigate\("agents"\)/);
   assert.match(appSource, /ACTIVE CREW/);
   assert.match(appSource, /agent-command-deck/);
   assert.match(appSource, /Risks & attention/);
+  assert.match(appSource, /item\.attentionRequired \|\| item\.status === "failed"/);
   assert.match(appSource, /No matching history/);
+  assert.match(appSource, /ENGINE EVIDENCE/);
+  assert.match(appSource, /RUN CHAPTERS/);
+  assert.match(appSource, /Correlation-backed/);
+  assert.match(appSource, /Structured evidence is stored without raw terminal output/);
+  assert.match(appSource, /Search event, actor, reason/);
+  assert.match(appSource, /RECORDED EVIDENCE/);
+  assert.match(appSource, /durable timeline of worker changes and verified operational facts/);
+  assert.match(appSource, /SINCE YOU LAST CHECKED/);
+  assert.match(appSource, /mission-control\.history-cursor\.v1/);
+  assert.match(appSource, /Mark reviewed/);
   assert.match(appSource, /Add & start/);
   assert.match(appSource, /request\("agent\.create", \{ adapterId \}\)/);
-  assert.match(appSource, /sessionId: result\.sessionId, action: \{ type: "start" \}/);
-  assert.match(appSource, /Start runs \$\{agent\.command\}/);
+  assert.match(appSource, /sessionId: createdSessionId, action: \{ type: "start" \}/);
+  assert.match(appSource, /progress not reported/);
+  assert.doesNotMatch(appSource, /68%|Mark resolved|window\.confirm/);
+  assert.match(appSource, /ConfirmationDialog/);
+  assert.match(appSource, /ArrowDown/);
+  assert.match(appSource, /aria-selected/);
+  assert.match(appSource, /fuzzyCommandScore/);
+  assert.match(appSource, /mission-control\.command-recents\.v1/);
+  assert.match(appSource, /Fuzzy search · Engine-safe actions only/);
   assert.match(appSource, /terminalFontSize=\{preferences\.terminalFontSize\}/);
+  assert.match(appSource, /project\.status === "uninitialized"/);
+  assert.match(appSource, /project\.initialize/);
+  assert.match(appSource, /terminals and agents now use this folder/);
+  assert.match(appSource, /Choose a project folder/);
+  assert.match(appSource, /Open workspace recipes/);
+  assert.match(appSource, /Launching \$\{recipe\.name\}/);
+  assert.match(appSource, /terminalLayout\.applyLayout/);
+
+  const recipesSource = require("node:fs").readFileSync(
+    path.resolve(__dirname, "../src/groundstation/renderer/WorkspaceRecipes.jsx"),
+    "utf8"
+  );
+  assert.match(recipesSource, /WORKSPACE RECIPES/);
+  assert.match(recipesSource, /Worker startup order/);
+  assert.match(recipesSource, /Launch recipe/);
+  assert.match(recipesSource, /recipe\.save/);
+  assert.match(recipesSource, /recipe\.pause/);
+  assert.match(recipesSource, /SHARED PROJECT RECIPES/);
+  assert.match(recipesSource, /dependency graph/);
+
+  const agentSource = require("node:fs").readFileSync(
+    path.resolve(__dirname, "../src/groundstation/renderer/AgentWorkspace.jsx"),
+    "utf8"
+  );
+  assert.match(agentSource, /AI WORKFORCE/);
+  assert.match(agentSource, /AGENT DEPLOYMENT/);
+  assert.match(agentSource, /Expand your AI crew/);
+  assert.match(agentSource, /agent-picker-summary/);
+  assert.match(agentSource, /Add another/);
+  assert.match(agentSource, /MULTI-AGENT READY/);
+  assert.match(agentSource, /SESSION SUMMARY/);
+  assert.match(agentSource, /CURRENT MISSION/);
+  assert.match(agentSource, /mission\.save/);
+  assert.match(agentSource, /MISSION PERMISSIONS/);
+  assert.match(agentSource, /PERMISSION PREVIEW/);
+  assert.match(agentSource, /MULTI-AGENT RESULTS/);
+  assert.match(agentSource, /FILES & DIFF/);
+  assert.match(agentSource, /terminal\.open/);
+  assert.match(agentSource, /terminal\.write/);
+  assert.match(agentSource, /Send an instruction/);
+  assert.doesNotMatch(agentSource, /api key|GEMINI_API_KEY/i);
 
   const styleSource = require("node:fs").readFileSync(
     path.resolve(__dirname, "../src/groundstation/renderer/styles.css"),
@@ -77,6 +161,8 @@ test("Groundstation product experience keeps the intentional navigation and Miss
   );
   assert.doesNotMatch(terminalSource, /className="terminal-session-select"/);
   assert.match(terminalSource, /className="terminal-session-menu"/);
+  assert.match(terminalSource, /terminal-pane__telemetry/);
+  assert.match(terminalSource, /session\.cwd \|\| "\."/);
 });
 
 test("Groundstation build is isolated from parent PostCSS configurations", async () => {
@@ -230,4 +316,15 @@ test("terminal layouts support unique persisted 1, 2, 4, and 6-pane assignments"
   assert.equal(swapped.sessionIds[0], six.sessionIds[4]);
   assert.equal(swapped.sessionIds[4], six.sessionIds[0]);
   assert.equal(new Set(swapped.sessionIds.filter(Boolean)).size, 4);
+  assert.equal(normalizeTerminalLayout({ layoutId: "horizontal", paneRatio: 68 }, sessions).paneRatio, 68);
+  assert.equal(normalizeTerminalLayout({ layoutId: "horizontal", paneRatio: 99 }, sessions).paneRatio, 75);
+  const appSource = require("node:fs").readFileSync(require("node:path").join(__dirname, "../src/groundstation/renderer/App.jsx"), "utf8");
+  assert.match(appSource, /className=\{`pane-resize-handle/);
+  assert.match(appSource, /onPointerDown=\{beginPaneResize\}/);
+  assert.match(appSource, /onDoubleClick=\{\(\) => terminalLayout\.setPaneRatio\(50\)\}/);
+  assert.doesNotMatch(appSource, /aria-label="Resize terminal panes" type="range"/);
+  assert.match(appSource, /function WorkerFolders/);
+  assert.match(appSource, /AI conversations/);
+  assert.match(appSource, /New folder/);
+  assert.match(appSource, /mission-control\.worker-folders\.v1/);
 });

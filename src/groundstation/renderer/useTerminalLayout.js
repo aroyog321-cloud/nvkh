@@ -1,11 +1,11 @@
 import React from "react";
 
 export const TERMINAL_LAYOUTS = Object.freeze([
-  { id: "single", label: "1", slots: 1, className: "layout-single" },
-  { id: "horizontal", label: "1×2", slots: 2, className: "layout-horizontal" },
-  { id: "vertical", label: "2×1", slots: 2, className: "layout-vertical" },
-  { id: "grid-2x2", label: "2×2", slots: 4, className: "layout-grid-2x2" },
-  { id: "grid-3x2", label: "3×2", slots: 6, className: "layout-grid-3x2" }
+  { id: "single", label: "Focus", glyph: "1", slots: 1, className: "layout-single" },
+  { id: "horizontal", label: "Columns", glyph: "1×2", slots: 2, className: "layout-horizontal" },
+  { id: "vertical", label: "Rows", glyph: "2×1", slots: 2, className: "layout-vertical" },
+  { id: "grid-2x2", label: "Grid 4", glyph: "2×2", slots: 4, className: "layout-grid-2x2" },
+  { id: "grid-3x2", label: "Grid 6", glyph: "3×2", slots: 6, className: "layout-grid-3x2" }
 ]);
 
 const DEFAULT_LAYOUT_ID = "grid-2x2";
@@ -34,7 +34,8 @@ export function normalizeTerminalLayout(value, sessions) {
     }
   }
   while (selected.length < layout.slots) selected.push(null);
-  return { layoutId: layout.id, sessionIds: selected };
+  const paneRatio = Number.isFinite(value?.paneRatio) ? Math.min(75, Math.max(25, value.paneRatio)) : 50;
+  return { layoutId: layout.id, sessionIds: selected, paneRatio };
 }
 
 export function assignTerminalSlot(value, index, sessionId, sessions) {
@@ -96,10 +97,21 @@ export default function useTerminalLayout(workspace, sessions) {
     setPreference(current => assignTerminalSlot(current, index, sessionId || null, sessions));
   }, [sessions]);
 
+  const applyLayout = React.useCallback(value => {
+    setPreference(current => normalizeTerminalLayout({ ...current, ...value }, sessions));
+  }, [sessions]);
+
+  const setPaneRatio = React.useCallback(paneRatio => {
+    setPreference(current => normalizeTerminalLayout({ ...current, paneRatio }, sessions));
+  }, [sessions]);
+
   return {
     layout: layoutById(preference.layoutId),
     sessionIds: preference.sessionIds,
+    paneRatio: preference.paneRatio,
     setLayoutId,
-    setSlotSession
+    setSlotSession,
+    setPaneRatio,
+    applyLayout
   };
 }

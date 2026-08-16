@@ -116,6 +116,42 @@ test("output and snapshots stay bounded and strip ANSI", t => {
   assert.equal(typeof snapshot.lastOutputAt, "number");
 });
 
+test("session snapshots expose isolated structured evidence and reset it on restart", async t => {
+  const factory = makeFakePtyFactory();
+  const engine = new SessionEngine({ ptyFactory: factory });
+  t.after(() => engine.dispose());
+  engine.create({ id: "evidence", command: "x", cwd: "." });
+
+  factory.last().emitData("Tests 8 passed 0 failed\nOn branch main\nnothing to commit, working tree clean\n");
+  const snapshot = engine.getSnapshot("evidence");
+  assert.equal(snapshot.evidence.tests.passed, 8);
+  assert.equal(snapshot.evidence.git.branch, "main");
+  snapshot.evidence.git.branch = "mutated";
+  assert.equal(engine.getSnapshot("evidence").evidence.git.branch, "main");
+
+  const restart = engine.restart("evidence");
+  factory.last().emitExit(0);
+  await restart;
+  assert.deepEqual(engine.getSnapshot("evidence").evidence, {});
+});
+
+test("structured evidence emits only when safe facts change", t => {
+  const factory = makeFakePtyFactory();
+  const engine = new SessionEngine({ ptyFactory: factory });
+  t.after(() => engine.dispose());
+  const events = [];
+  engine.on("session:evidence", event => events.push(event));
+  engine.create({ id: "facts", name: "Facts", command: "x", cwd: "." });
+
+  factory.last().emitData("8 passed, 0 failed\n");
+  factory.last().emitData("8 passed, 0 failed\n");
+  factory.last().emitData("9 passed, 0 failed\n");
+
+  assert.equal(events.length, 2);
+  assert.deepEqual(events.map(event => event.evidence.passed), [8, 9]);
+  assert.equal(events.every(event => event.category === "tests" && event.name === "Facts"), true);
+});
+
 test("claim detection survives split PTY chunks and remains sticky until acknowledged", t => {
   const factory = makeFakePtyFactory();
   const engine = new SessionEngine({ ptyFactory: factory });
@@ -201,12 +237,16 @@ test("restart waits for the old PTY exit before spawning one replacement", async
   const engine = new SessionEngine({ ptyFactory: factory });
   t.after(() => engine.dispose());
   engine.create({ id: "a", name: "server", command: "x", cwd: "." });
+  const firstCorrelationId = engine.getSnapshot("a").correlationId;
 
   const result = await engine.restart("a");
   assert.deepEqual(result, { ok: true });
   assert.equal(factory.instances.length, 2);
   assert.equal(factory.instances[0].killed, true);
   assert.equal(engine.getSnapshot("a").status, "running");
+  assert.match(firstCorrelationId, /^a:run:\d+:1$/);
+  assert.match(engine.getSnapshot("a").correlationId, /^a:run:\d+:2$/);
+  assert.notEqual(engine.getSnapshot("a").correlationId, firstCorrelationId);
 });
 
 test("restart aborts instead of creating a duplicate if the old PTY never exits", async t => {

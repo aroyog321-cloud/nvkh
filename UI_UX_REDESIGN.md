@@ -17,7 +17,12 @@ the whole experience feel like an internal control panel rather than a premium d
 
 ## Information architecture
 
-The primary structure now contains only seven durable destinations:
+The trust-first implementation now treats four destinations as the daily navigation:
+Groundstation, Workspace, Needs You, and History. Agents are managed as a contextual
+operational surface, Projects through the title-bar switcher, and Settings through
+Mission Command/application controls.
+
+The complete product still contains seven durable surfaces:
 
 1. **Groundstation** — Project Pulse, current motion and next action.
 2. **Workspace** — the terminal workstation and contextual inspector.
@@ -55,3 +60,29 @@ permanent navigation space.
 - **Project Memory** turns engine events into a readable timeline.
 
 The redesign changes no engine, PTY ownership, recovery or Protocol v1 behavior.
+
+## Trust-first implementation status
+
+Implemented after the original redesign:
+
+- Groundstation includes a conditional Needs You shelf, and the full decision queue
+  presents evidence, impact, recommended action, and acknowledgement separately.
+- Agent conversations include locally persisted mission context without inventing
+  progress or modifying engine-owned session state.
+- Project Memory supports evidence-oriented search and no longer describes generic
+  chronological events as proven causal relationships.
+- AI agents now open into a supervised conversation workspace with a workforce roster,
+  current-state briefing, live PTY-backed chat, bounded transcript, and lifecycle
+  summary instead of the generic worker-history dialog.
+- Explainable project health replaces the synthetic numeric pulse score.
+- Agent phases and evidence replace fixed completion percentages.
+- Acknowledgement is explicitly distinct from verified recovery.
+- Mission Command supports real keyboard selection.
+- Destructive actions use contextual in-app confirmations.
+- Groundstation workers expose their operational role and no longer repeat Quick Look,
+  Docker, and operations-ribbon summaries in the main scene.
+- Idle status animation is calm and default operational text is larger.
+
+The decision lifecycle, mission metadata, causal event correlation, workspace recipes,
+VS Code bridge, mobile companion, and MCP-style integrations remain future protocol and
+product work described in `MISSION_CONTROL_PRODUCT_PLAN.md`.

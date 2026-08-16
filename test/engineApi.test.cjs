@@ -270,7 +270,7 @@ test("bounded activity timeline replays operational events without duplicating t
   assert.ok(activity.droppedThroughSequence > 0);
   assert.deepEqual(
     activity.events.map(event => event.type),
-    ["session:status", "session:supervision", "session:supervision", "session:renamed"]
+    ["session:evidence", "session:supervision", "session:supervision", "session:renamed"]
   );
 
   const replay = api.getActivity({ afterSequence: 0, limit: 2 });
@@ -281,6 +281,22 @@ test("bounded activity timeline replays operational events without duplicating t
   replay.events[0].type = "corrupted";
   assert.notEqual(api.getActivity({ limit: 4 }).events[0].type, "corrupted");
   assert.doesNotThrow(() => JSON.stringify(api.getState()));
+});
+
+test("structured worker evidence enters durable activity without raw terminal output", t => {
+  const factory = makeFakePtyFactory();
+  const api = new EngineAPI({ ptyFactory: factory });
+  t.after(() => api.dispose());
+  api.loadProject({ sessions: [{ id: "tests", name: "Tests", command: "x", cwd: "." }] });
+
+  factory.last().emitData("24 passed, 2 failed secret-token=never-store-this\n");
+  const event = api.getActivity().events.find(item => item.type === "session:evidence");
+
+  assert.equal(event.id, "tests");
+  assert.equal(event.name, "Tests");
+  assert.equal(event.category, "tests");
+  assert.deepEqual({ passed: event.evidence.passed, failed: event.evidence.failed }, { passed: 24, failed: 2 });
+  assert.equal(JSON.stringify(event).includes("never-store-this"), false);
 });
 
 test("workspace and attach failures use the same ordered public event contract", t => {

@@ -1,6 +1,13 @@
 const EventEmitter = require("node:events");
 const { stripAnsi } = require("./ansi.cjs");
 const { classify } = require("./classifier.cjs");
+const { mergeEvidence } = require("./evidenceClassifier.cjs");
+
+function evidenceFactsChanged(previous, next) {
+  if (!previous) return true;
+  const withoutTimestamp = value => Object.fromEntries(Object.entries(value || {}).filter(([key]) => key !== "at"));
+  return JSON.stringify(withoutTimestamp(previous)) !== JSON.stringify(withoutTimestamp(next));
+}
 
 const MAX_BUFFERED_LINES = 500;
 const SNAPSHOT_LINES = 200;
@@ -209,15 +216,18 @@ class Session extends EventEmitter {
     this.startTime = null;
     this.endTime = null;
     this.lastOutputAt = null;
+    this.correlationId = null;
     this.activity = null;
     this.attentionRequired = false;
     this.attentionReason = null;
     this.attentionSince = null;
+    this.evidence = {};
     this._partialLine = "";
     this._rawReplay = new RawReplayBuffer();
     this._ptyRegistrations = [];
     this._stopRequested = false;
     this._disposed = false;
+    this._runSequence = 0;
   }
 
   _setStatus(status) {
@@ -329,8 +339,10 @@ class Session extends EventEmitter {
     this.exitCode = null;
     this.exitSignal = null;
     this.startTime = Date.now();
+    this.correlationId = `${this.id}:run:${this.startTime}:${++this._runSequence}`;
     this.endTime = null;
     this.lastOutputAt = null;
+    this.evidence = {};
     this._partialLine = "";
     this._rawReplay.clear();
     this._stopRequested = false;
@@ -367,6 +379,13 @@ class Session extends EventEmitter {
       this.lastOutputAt = Date.now();
       const supervisionText = this._partialLine + text;
       this._consumeOutput(text);
+      const previousEvidence = this.evidence;
+      this.evidence = mergeEvidence(this.evidence, supervisionText, this.lastOutputAt);
+      for (const [category, evidence] of Object.entries(this.evidence)) {
+        if (evidenceFactsChanged(previousEvidence[category], evidence)) {
+          this.emit("evidence", { category, evidence: JSON.parse(JSON.stringify(evidence)) });
+        }
+      }
       this._updateSupervision(supervisionText);
       this.emit("data", text);
     };
@@ -575,6 +594,8 @@ class Session extends EventEmitter {
       this.startTime = null;
       this.endTime = null;
       this.lastOutputAt = null;
+      this.correlationId = null;
+      this.evidence = {};
       this._partialLine = "";
       this._rawReplay.clear();
       this._stopRequested = false;
@@ -610,10 +631,12 @@ class Session extends EventEmitter {
       pid: this.proc?.pid ?? null,
       startTime: this.startTime,
       lastOutputAt: this.lastOutputAt,
+      correlationId: this.correlationId,
       runtimeMs: this.startTime === null ? 0 : Math.max(0, stop - this.startTime),
       exitCode: this.exitCode,
       exitSignal: this.exitSignal,
       spawnError: this.spawnError,
+      evidence: JSON.parse(JSON.stringify(this.evidence)),
       ...this._supervisionSummary(),
       envKeys: Object.keys(this.env),
       powershellCompatibility: this.powershellCompatibility,
@@ -679,15 +702,17 @@ class SessionEngine extends EventEmitter {
   }
 
   _wireSession(session) {
+    const correlated = info => ({ id: session.id, correlationId: session.correlationId, ...info });
     const bindings = [
-      ["data", data => this.emit("session:output", { id: session.id, data })],
-      ["status", info => this.emit("session:status", { id: session.id, ...info })],
-      ["exit", info => this.emit("session:exit", { id: session.id, ...info })],
-      ["spawn-error", info => this.emit("session:spawn-error", { id: session.id, ...info })],
-      ["supervision", info => this.emit("session:supervision", { id: session.id, ...info })],
-      ["renamed", info => this.emit("session:renamed", { id: session.id, ...info })],
-      ["autostart", info => this.emit("session:autostart", { id: session.id, ...info })],
-      ["reconfigured", info => this.emit("session:reconfigured", { id: session.id, ...info })]
+      ["data", data => this.emit("session:output", correlated({ data }))],
+      ["status", info => this.emit("session:status", correlated(info))],
+      ["exit", info => this.emit("session:exit", correlated(info))],
+      ["spawn-error", info => this.emit("session:spawn-error", correlated(info))],
+      ["supervision", info => this.emit("session:supervision", correlated(info))],
+      ["evidence", info => this.emit("session:evidence", correlated({ name: session.name, ...info }))],
+      ["renamed", info => this.emit("session:renamed", correlated(info))],
+      ["autostart", info => this.emit("session:autostart", correlated(info))],
+      ["reconfigured", info => this.emit("session:reconfigured", correlated(info))]
     ];
 
     for (const [event, listener] of bindings) session.on(event, listener);

@@ -32,7 +32,7 @@ function actionLabel(session) {
   return "Restart";
 }
 
-export default function TerminalPane({ session, sessions, active, expanded, terminalFontSize = 13, onFocus, onToggleExpanded, onAction, onSelectSession }) {
+export default function TerminalPane({ session, sessions, profile, active, expanded, terminalFontSize = 13, onFocus, onToggleExpanded, onAction, onSelectSession, onDropSession }) {
   const hostRef = React.useRef(null);
   const terminalRef = React.useRef(null);
   const fitRef = React.useRef(null);
@@ -40,6 +40,7 @@ export default function TerminalPane({ session, sessions, active, expanded, term
   const [connection, setConnection] = React.useState(session?.isAlive ? "connecting" : "offline");
   const [message, setMessage] = React.useState("");
   const [chooserOpen, setChooserOpen] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
 
   React.useEffect(() => {
     const host = hostRef.current;
@@ -48,7 +49,7 @@ export default function TerminalPane({ session, sessions, active, expanded, term
     const terminal = new Terminal({
       allowProposedApi: false,
       convertEol: false,
-      cursorBlink: true,
+      cursorBlink: active,
       cursorStyle: "bar",
       fontFamily: "'SFMono-Regular', 'Cascadia Code', Consolas, monospace",
       fontSize: terminalFontSize,
@@ -196,13 +197,21 @@ export default function TerminalPane({ session, sessions, active, expanded, term
     return () => window.cancelAnimationFrame(frame);
   }, [active, expanded]);
 
+  React.useEffect(() => {
+    if (terminalRef.current) terminalRef.current.options.cursorBlink = active;
+  }, [active]);
+
   if (!session) return null;
   const runAction = session.isAlive ? "restart" : "start";
 
   return (
     <article
-      className={`terminal-pane ${active ? "is-active" : ""} ${expanded ? "is-expanded" : ""}`}
+      className={`terminal-pane ${active ? "is-active" : ""} ${expanded ? "is-expanded" : ""} ${dragOver ? "is-drop-target" : ""}`}
       onMouseDown={onFocus}
+      onDragEnter={event => { if (event.dataTransfer.types.includes("application/x-mission-worker")) setDragOver(true); }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false); }}
+      onDragOver={event => { if (event.dataTransfer.types.includes("application/x-mission-worker")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
+      onDrop={event => { event.preventDefault(); setDragOver(false); const id = event.dataTransfer.getData("application/x-mission-worker"); if (id && id !== session.id) onDropSession(id); }}
     >
       <header className="terminal-pane__header">
         <div className="terminal-pane__identity">
@@ -223,10 +232,15 @@ export default function TerminalPane({ session, sessions, active, expanded, term
               {sessions.map(option => <button type="button" role="menuitem" className={option.id === session.id ? "is-current" : ""} key={option.id} onClick={() => { onSelectSession(option.id); setChooserOpen(false); }}><i className={`status-${option.status}`}/><span><strong>{option.name}</strong><small>{option.command}</small></span>{option.id === session.id && <b>Current</b>}</button>)}
               <button type="button" role="menuitem" onClick={() => { onSelectSession(""); setChooserOpen(false); }}><i/><span><strong>Empty pane</strong><small>Free this position</small></span></button>
             </div>}
-            <span>{session.status} · {connection}</span>
+            <span>{session.status} · {connection} · {session.cwd || "."}</span>
           </div>
         </div>
+        {profile && <div className={`terminal-role-badge role-${profile.key}`} title={profile.detail}><small>{profile.label}</small><strong>{profile.metric}</strong></div>}
+        <div className={`terminal-pane__telemetry connection-${connection}`}><i/><span>{connection === "live" ? "LIVE OUTPUT" : connection.toUpperCase()}</span></div>
         <div className="terminal-pane__actions">
+          <button type="button" className="terminal-drag-handle" draggable title="Drag terminal to another pane" aria-label={`Move ${session.name} to another terminal pane`} onMouseDown={event => event.stopPropagation()} onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-mission-worker", session.id); event.dataTransfer.setData("text/plain", session.id); }}>
+            ⠿
+          </button>
           {session.attentionRequired && (
             <button type="button" className="quiet-button" onClick={() => onAction("acknowledge", session.id)}>
               Acknowledge

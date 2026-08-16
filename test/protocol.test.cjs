@@ -169,7 +169,10 @@ test("agent adapters create only allow-listed manual workers", async () => {
       return { ok: true, session: { id: definition.id } };
     }
   });
-  const connection = createProtocolConnection(engine, { send: () => {} });
+  const connection = createProtocolConnection(engine, {
+    send: () => {},
+    agentAdapterOptions: { platform: "linux", resolveCommand: command => command }
+  });
   const listed = await connection.handle(request("agents", "agents.list"));
   assert.deepEqual(listed.result.map(adapter => adapter.id), ["claude", "codex", "gemini", "opencode"]);
   assert.deepEqual(listed.result.map(adapter => adapter.command), ["claude", "codex", "gemini", "opencode"]);

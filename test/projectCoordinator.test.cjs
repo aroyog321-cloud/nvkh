@@ -105,9 +105,11 @@ test("native selections use opaque tokens and initialize a portable workspace wi
   });
   assert.equal(opened.workspace.name, "Windows project");
   assert.equal(host.calls.length, 1);
+  assert.equal(host.calls[0].cwd, project);
   const raw = JSON.parse(fs.readFileSync(path.join(project, "termctl.config.json"), "utf8"));
   assert.equal(raw.sessions[0].command, "powershell.exe");
   assert.deepEqual(raw.sessions[0].args, ["-NoLogo"]);
+  assert.equal(raw.sessions[0].cwd, ".");
   assert.equal(raw.sessions[0].powershellCompatibility, true);
   assert.equal(coordinator.list().projects[0].current, true);
 

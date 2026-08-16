@@ -18,12 +18,23 @@ const METHODS = Object.freeze([
   "state.get",
   "events.activate",
   "activity.get",
+  "memory.summary",
   "workspace.get",
+  "integration.list",
+  "recipe.list",
+  "recipe.save",
+  "recipe.delete",
+  "recipe.run",
+  "recipe.pause",
+  "recipe.resume",
   "session.get",
   "session.configuration.get",
   "preset.list",
   "agents.list",
   "agent.create",
+  "mission.list",
+  "mission.save",
+  "mission.instruction.record",
   "projects.list",
   "project.choose",
   "project.open",
@@ -229,6 +240,7 @@ function createProtocolConnection(engineApi, options = {}) {
   const onShutdown = options.onShutdown;
   const projectService = options.projectService || null;
   const recoveryService = options.recoveryService || null;
+  const agentAdapterOptions = options.agentAdapterOptions || {};
   const terminalStreams = new Map();
   let disposed = false;
   let eventMode = "queued";
@@ -423,8 +435,35 @@ function createProtocolConnection(engineApi, options = {}) {
       }
       case "activity.get":
         return { result: engineApi.getActivity(params) };
+      case "memory.summary":
+        return { result: engineApi.getProjectMemory({ afterSequence: params.afterSequence }) };
       case "workspace.get":
         return { result: engineApi.getWorkspace() };
+      case "integration.list":
+        return { result: engineApi.listIntegrations() };
+      case "recipe.list":
+        return { result: engineApi.listRecipes() };
+      case "recipe.save": {
+        if (!isPlainObject(params.recipe)) throw new ProtocolError("INVALID_PARAMS", "recipe is required");
+        const result = engineApi.saveRecipe(params.recipe);
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "recipe could not be saved");
+        return { result };
+      }
+      case "recipe.delete": {
+        const recipeId = requireString(params, "recipeId");
+        const result = engineApi.deleteRecipe(recipeId);
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "recipe could not be deleted");
+        return { result };
+      }
+      case "recipe.run":
+      case "recipe.pause":
+      case "recipe.resume": {
+        const recipeId = requireString(params, "recipeId");
+        const operation = method === "recipe.run" ? "runRecipe" : method === "recipe.pause" ? "pauseRecipe" : "resumeRecipe";
+        const result = engineApi[operation](recipeId);
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || `${method} failed`);
+        return { result };
+      }
       case "session.get": {
         const sessionId = requireString(params, "sessionId");
         const session = engineApi.getSnapshot(sessionId);
@@ -440,12 +479,12 @@ function createProtocolConnection(engineApi, options = {}) {
       case "preset.list":
         return { result: engineApi.listSavedCommands() };
       case "agents.list":
-        return { result: listAgentAdapters() };
+        return { result: listAgentAdapters(agentAdapterOptions) };
       case "agent.create": {
         const adapterId = requireString(params, "adapterId");
         let definition;
         try {
-          definition = createAgentDefinition(adapterId);
+          definition = createAgentDefinition(adapterId, agentAdapterOptions);
         } catch (error) {
           throw new ProtocolError("INVALID_PARAMS", error.message);
         }
@@ -454,6 +493,35 @@ function createProtocolConnection(engineApi, options = {}) {
           throw new ProtocolError("ACTION_FAILED", result?.error || "agent worker could not be created");
         }
         return { result: { created: true, sessionId: definition.id, adapterId } };
+      }
+      case "mission.list":
+        return { result: engineApi.listMissions() };
+      case "mission.save": {
+        if (!isPlainObject(params.mission)) throw new ProtocolError("INVALID_PARAMS", "mission is required");
+        const result = engineApi.saveMission(params.mission);
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "mission could not be saved");
+        return { result };
+      }
+      case "mission.instruction.record": {
+        const agentId = requireString(params, "agentId");
+        const result = engineApi.recordMissionInstruction(agentId, { instructionLength: params.instructionLength, requestedScopes: params.requestedScopes });
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "instruction scope denied");
+        return { result };
+      }
+      case "attention.list":
+        return { result: engineApi.listAttention() };
+      case "attention.transition": {
+        const attentionId = requireString(params, "attentionId");
+        const state = requireString(params, "state");
+        const result = engineApi.transitionAttention(attentionId, state, { snoozedUntil: params.snoozedUntil });
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "attention lifecycle could not be updated");
+        return { result };
+      }
+      case "attention.preferences.save": {
+        if (!isPlainObject(params.preferences)) throw new ProtocolError("INVALID_PARAMS", "preferences are required");
+        const result = engineApi.saveAttentionPreferences(params.preferences);
+        if (!result?.ok) throw new ProtocolError("ACTION_FAILED", result?.error || "attention preferences could not be saved");
+        return { result };
       }
       case "projects.list":
         return { result: await callProject("list", list => list()) };

@@ -120,6 +120,63 @@ test("workspace writes are durable and preserve unrelated configuration", t => {
   assert.deepEqual(saved.sessions.map(session => session.id), ["b"]);
 });
 
+test("shared recipes persist and engine runs dependency steps with pause policies", async t => {
+  const { filePath } = makeWorkspace(t, {
+    project: "recipe project",
+    sessions: [
+      { id: "api", command: "x", cwd: ".", autoStart: false },
+      { id: "web", command: "x", cwd: ".", autoStart: false }
+    ]
+  });
+  const factory = makeFakePtyFactory();
+  const api = new EngineAPI({ ptyFactory: factory, activityPersistDelayMs: 0 });
+  t.after(() => api.dispose());
+  api.loadProject(filePath);
+  const saved = api.saveRecipe({
+    id: "daily",
+    name: "Daily stack",
+    steps: [
+      { workerId: "api", dependsOn: [], readiness: "running" },
+      { workerId: "web", dependsOn: ["api"], readiness: "running" }
+    ],
+    layoutId: "horizontal",
+    sessionIds: ["api", "web"],
+    failurePolicy: "stop"
+  });
+  assert.equal(saved.ok, true);
+  assert.equal(openWorkspace(filePath).recipeDefinitions()[0].id, "daily");
+  assert.equal(api.runRecipe("daily").ok, true);
+
+  const deadline = Date.now() + 1000;
+  while (api.listRecipes()[0].run?.phase === "running" && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  const recipe = api.listRecipes()[0];
+  assert.equal(recipe.run.phase, "completed");
+  assert.deepEqual(recipe.run.completed, ["api", "web"]);
+  assert.equal(factory.instances.length, 2);
+  assert.equal(api.getActivity().events.some(event => event.type === "recipe:step" && event.phase === "ready"), true);
+});
+
+test("durable agent missions enforce scopes and retain structured evidence", t => {
+  const { filePath } = makeWorkspace(t, { project: "missions", sessions: [{ id: "agent-codex-demo", name: "Codex agent", command: "x", cwd: "." }] });
+  const factory = makeFakePtyFactory();
+  const api = new EngineAPI({ ptyFactory: factory, activityPersistDelayMs: 0 });
+  t.after(() => api.dispose());
+  api.loadProject(filePath);
+  const saved = api.saveMission({ agentId: "agent-codex-demo", title: "Verify the release", scopes: ["read", "execute"] });
+  assert.equal(saved.ok, true);
+  assert.equal(api.recordMissionInstruction("agent-codex-demo", { instructionLength: 18, requestedScopes: ["execute"] }).ok, true);
+  assert.match(api.recordMissionInstruction("agent-codex-demo", { instructionLength: 8, requestedScopes: ["write"] }).error, /does not allow/);
+  factory.last().emitData("24 passed, 0 failed\n## main\n M src/app.js\n");
+  const mission = api.listMissions()[0];
+  assert.equal(mission.evidence.some(item => item.type === "command"), true);
+  assert.equal(mission.evidence.some(item => item.type === "test"), true);
+  assert.equal(mission.evidence.some(item => item.type === "diff" && item.file.changedPaths === 1), true);
+  assert.equal(openWorkspace(filePath).missionDefinitions()[0].title, "Verify the release");
+  assert.equal(JSON.stringify(mission).includes("src/app.js"), false);
+});
+
 test("startup policy is persisted as an opt-out and restores without spawning", async t => {
   const { filePath } = makeWorkspace(t, {
     sessions: [{ id: "a", name: "Alpha", command: "node", cwd: ".", autoStart: false }]

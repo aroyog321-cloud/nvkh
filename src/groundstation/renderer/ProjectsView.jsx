@@ -26,15 +26,15 @@ export default function ProjectsView({ data, loading, onChoose, onOpen, onRemove
     <div className="projects-view">
       <section className="project-hero panel">
         <div>
-          <span className="eyebrow">PROJECT EXPERIENCE</span>
-          <h3>One command center for every local project</h3>
+          <span className="eyebrow">OPEN FOLDER</span>
+          <h3>Choose the directory your tools should work in</h3>
           <p>
-            Mission Control restores the last healthy project, keeps terminal layouts separate,
-            and releases every worker and workspace lock before switching.
+            Like VS Code, the selected folder becomes the project root. Terminals, workers,
+            recipes, and AI agents all start from that directory unless you choose a subfolder.
           </p>
         </div>
         <button type="button" className="primary-button" onClick={onChoose} disabled={loading}>
-          {loading ? "Opening…" : "＋ Open project"}
+          {loading ? "Opening…" : "+ Open folder"}
         </button>
       </section>
 
@@ -94,7 +94,7 @@ export default function ProjectsView({ data, loading, onChoose, onOpen, onRemove
           <div className="empty-state">
             <span>⊞</span>
             <strong>No recent projects</strong>
-            <p>Choose a folder with termctl.config.json, or initialize a new Mission Control workspace.</p>
+            <p>Choose any folder. Mission Control creates its local workspace file and opens a shell rooted there.</p>
           </div>
         )}
       </section>
