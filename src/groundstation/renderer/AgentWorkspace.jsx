@@ -1,4 +1,5 @@
 import React from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   missionApi,
   notificationPayload,
@@ -46,17 +47,9 @@ function displayCommand(agent) {
 }
 
 function AgentPicker({ open, adapters, agents, loading, onClose, onAdd }) {
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onKey = event => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, open]);
-  if (!open) return null;
   const availableCount = adapters.filter(adapter => adapter.available !== false).length;
-  return <div className="agent-picker-backdrop" onMouseDown={onClose}>
-    <section className="agent-picker" role="dialog" aria-modal="true" aria-labelledby="agent-picker-title" onMouseDown={event => event.stopPropagation()}>
-      <header><div><span className="section-kicker">AGENT DEPLOYMENT</span><h2 id="agent-picker-title">Expand your AI crew</h2><p>Choose an installed local agent. Mission Control creates a supervised worker and starts its official CLI.</p></div><button onClick={onClose} aria-label="Close add agent dialog">×</button></header>
+  return <Dialog.Root open={open} onOpenChange={value => !value && onClose()}><Dialog.Portal><Dialog.Overlay className="agent-picker-backdrop"/><Dialog.Content className="agent-picker" aria-describedby="agent-picker-description">
+      <header><div><span className="section-kicker">AGENT DEPLOYMENT</span><Dialog.Title id="agent-picker-title">Expand your AI crew</Dialog.Title><Dialog.Description id="agent-picker-description">Choose an installed local agent. Mission Control creates a supervised worker and starts its official CLI.</Dialog.Description></div><Dialog.Close asChild><button aria-label="Close add agent dialog">×</button></Dialog.Close></header>
       <div className="agent-picker-summary"><div><span className="agent-picker-summary__mark">AI</span><span><strong>{availableCount} agents ready</strong><small>{adapters.length - availableCount} unavailable on this machine</small></span></div><div><span>ENGINE OWNED</span><span>LOCAL AUTH</span><span>MULTI-AGENT READY</span></div></div>
       <div className="agent-picker-label"><span>AVAILABLE AGENTS</span><small>Select one to add and start</small></div>
       <div className="agent-picker-grid">{adapters.map(adapter => {
@@ -68,9 +61,8 @@ function AgentPicker({ open, adapters, agents, loading, onClose, onAdd }) {
           <span className="agent-picker-action">{unavailable ? "Unavailable" : loading ? "Starting…" : <>Add agent <b>→</b></>}</span>
         </button>;
       })}</div>
-      <footer><span><b>Private by default.</b> Uses engine-owned PTYs and each CLI’s existing authentication.</span><button onClick={onClose}>Cancel</button></footer>
-    </section>
-  </div>;
+      <footer><span><b>Private by default.</b> Uses engine-owned PTYs and each CLI’s existing authentication.</span><Dialog.Close asChild><button>Cancel</button></Dialog.Close></footer>
+    </Dialog.Content></Dialog.Portal></Dialog.Root>;
 }
 
 export default function AgentWorkspace({ sessions, activity, adapters, loading, selectedId, onSelect, onCreate, onAction, onOpenTerminal }) {

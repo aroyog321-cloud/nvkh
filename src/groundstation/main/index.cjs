@@ -3,7 +3,8 @@ const {
   app,
   BrowserWindow,
   dialog,
-  ipcMain
+  ipcMain,
+  shell
 } = require("electron");
 const { EngineHost } = require("../../service/engineHost.cjs");
 const { DiagnosticStore } = require("../../service/diagnosticStore.cjs");
@@ -194,6 +195,12 @@ async function start() {
   }
 
   engineHost = new EngineHost();
+  ipcMain.handle("mission-control:open-external", async (_event, url) => {
+    const allowed = new Set(["https://github.com/radix-ui/primitives", "https://github.com/pacocoursey/cmdk"]);
+    if (!allowed.has(url)) throw new Error("External resource is not allow-listed");
+    await shell.openExternal(url);
+    return true;
+  });
   recoveryService = new GroundstationRecoveryService({
     store: new DiagnosticStore(path.join(app.getPath("userData"), "recovery-diagnostics.json"))
   });

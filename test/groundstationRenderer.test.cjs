@@ -23,15 +23,20 @@ test("Groundstation product experience keeps the intentional navigation and Miss
     "utf8"
   );
 
-  for (const section of ["Groundstation", "Workspace", "Needs You", "History"]) {
+  for (const section of ["Groundstation", "Workspace", "Needs You", "Agents", "History"]) {
     assert.match(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${section}\\\"`));
   }
-  for (const destination of ["Manage AI agents", "Switch project", "Open settings"]) {
+  for (const destination of ["Switch project", "Open settings"]) {
     assert.match(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${destination}\\\"`));
   }
   for (const removedPrimaryPage of ["Overview", "Terminals", "Activity", "Logs"] ) {
     assert.doesNotMatch(appSource, new RegExp(`\\[\\\"[^\\\"]+\\\", \\\"${removedPrimaryPage}\\\"`));
   }
+  for (const contextualOnlyPage of ["Tasks", "Git", "Tests", "Builds", "Docker", "Database", "Workers"]) {
+    assert.doesNotMatch(appSource, new RegExp(`\\[\\s*\\\"[^\\\"]+\\\",\\s*\\\"${contextualOnlyPage}\\\"`));
+  }
+  assert.match(appSource, /Notification policy is managed in Settings/);
+  assert.match(appSource, /function NotificationSettings/);
   assert.match(appSource, /event\.ctrlKey \|\| event\.metaKey/);
   assert.match(appSource, /event\.key\.toLowerCase\(\) === "k"/);
   assert.match(appSource, /event\.key\.toLowerCase\(\) === "n"/);
@@ -100,11 +105,14 @@ test("Groundstation product experience keeps the intentional navigation and Miss
   assert.match(appSource, /progress not reported/);
   assert.doesNotMatch(appSource, /68%|Mark resolved|window\.confirm/);
   assert.match(appSource, /ConfirmationDialog/);
-  assert.match(appSource, /ArrowDown/);
-  assert.match(appSource, /aria-selected/);
-  assert.match(appSource, /fuzzyCommandScore/);
+  assert.match(appSource, /from "cmdk"/);
+  assert.match(appSource, /<Command\.Item/);
+  assert.doesNotMatch(appSource, /fuzzyCommandScore/);
   assert.match(appSource, /mission-control\.command-recents\.v1/);
   assert.match(appSource, /Fuzzy search · Engine-safe actions only/);
+  assert.match(appSource, /@radix-ui\/react-alert-dialog/);
+  assert.match(appSource, /@radix-ui\/react-dropdown-menu/);
+  assert.match(appSource, /function ResourceLinks/);
   assert.match(appSource, /terminalFontSize=\{preferences\.terminalFontSize\}/);
   assert.match(appSource, /project\.status === "uninitialized"/);
   assert.match(appSource, /project\.initialize/);
@@ -154,6 +162,9 @@ test("Groundstation product experience keeps the intentional navigation and Miss
   );
   assert.match(styleSource, /scrollbar-width: thin/);
   assert.match(styleSource, /::-webkit-scrollbar-thumb/);
+  assert.match(styleSource, /@container groundstation/);
+  assert.match(appSource, /worker-folder-delete/);
+  assert.doesNotMatch(appSource, /<i\s+onClick=/);
 
   const terminalSource = require("node:fs").readFileSync(
     path.resolve(__dirname, "../src/groundstation/renderer/TerminalPane.jsx"),
@@ -172,6 +183,10 @@ test("Groundstation build is isolated from parent PostCSS configurations", async
   const { default: config } = await import(`${configUrl}?postcss=${Date.now()}`);
 
   assert.deepEqual(config.css?.postcss, { plugins: [] });
+  const forwarded = [];
+  config.build.rollupOptions.onwarn({ code: "MODULE_LEVEL_DIRECTIVE", id: "D:/repo/node_modules/radix/index.mjs", message: '"use client" was ignored' }, warning => forwarded.push(warning));
+  config.build.rollupOptions.onwarn({ code: "OTHER_WARNING", id: "renderer.jsx", message: "important" }, warning => forwarded.push(warning));
+  assert.deepEqual(forwarded.map(warning => warning.code), ["OTHER_WARNING"]);
   assert.deepEqual(config.build?.rollupOptions?.output?.manualChunks, {
     "vendor-react": ["react", "react-dom"],
     "vendor-terminal": ["@xterm/xterm", "@xterm/addon-fit"]

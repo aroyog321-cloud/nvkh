@@ -19,6 +19,14 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       input: path.join(repositoryRoot, "src", "groundstation", "renderer", "index.html"),
+      onwarn(warning, warn) {
+        const normalizedId = warning.id?.replaceAll("\\", "/") || "";
+        const isDependencyClientDirective = warning.code === "MODULE_LEVEL_DIRECTIVE"
+          && normalizedId.includes("/node_modules/")
+          && warning.message?.includes('"use client"');
+        if (isDependencyClientDirective) return;
+        warn(warning);
+      },
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom"],

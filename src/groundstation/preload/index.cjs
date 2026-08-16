@@ -31,6 +31,10 @@ function subscribe(callback) {
   return () => subscribers.delete(callback);
 }
 
+function openExternal(url) {
+  return ipcRenderer.invoke("mission-control:open-external", url);
+}
+
 ipcRenderer.on(EVENT_CHANNEL, (_event, message) => {
   if (!message || message.version !== PROTOCOL_VERSION) return;
   if (!subscribers.size) {
@@ -52,5 +56,6 @@ ipcRenderer.on(EVENT_CHANNEL, (_event, message) => {
 contextBridge.exposeInMainWorld("missionControl", Object.freeze({
   version: PROTOCOL_VERSION,
   request,
+  openExternal,
   subscribe
 }));
