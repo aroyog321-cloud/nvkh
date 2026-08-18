@@ -4,6 +4,7 @@ const {
   BrowserWindow,
   dialog,
   ipcMain,
+  screen,
   shell
 } = require("electron");
 const { EngineHost } = require("../../service/engineHost.cjs");
@@ -80,12 +81,16 @@ function scheduleRendererRecovery(window, details = {}) {
 }
 
 function createWindow(options = {}) {
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const width = Math.min(1480, Math.max(960, Math.floor(workArea.width * 0.94)));
+  const height = Math.min(940, Math.max(640, Math.floor(workArea.height * 0.92)));
   const window = new BrowserWindow({
-    width: 1480,
-    height: 940,
-    minWidth: 1040,
-    minHeight: 680,
-    backgroundColor: "#0b0e14",
+    width,
+    height,
+    minWidth: Math.min(1040, width),
+    minHeight: Math.min(680, height),
+    center: true,
+    backgroundColor: "#080a09",
     title: "Mission Control Groundstation",
     show: false,
     webPreferences: {
@@ -98,7 +103,10 @@ function createWindow(options = {}) {
   });
 
   window.removeMenu();
-  window.once("ready-to-show", () => window.show());
+  window.once("ready-to-show", () => {
+    window.maximize();
+    window.show();
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", event => event.preventDefault());
   window.webContents.on("will-attach-webview", event => event.preventDefault());

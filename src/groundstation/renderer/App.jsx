@@ -161,6 +161,9 @@ function agentPhase(agent) {
 function WorkerCard({ session, activity, selected, onSelect, onFocus, onAction }) {
   const summary = sessionSummary(session, activity);
   const [actioning, setActioning] = React.useState("");
+  const kind = workerKind(session);
+  const state = session.status === "failed" ? "failed" : session.attentionRequired ? "risk" : session.isAlive ? "live" : "idle";
+  const stateLabel = state === "risk" ? "Review" : state === "live" ? "Live" : state[0].toUpperCase() + state.slice(1);
   const runAction = async type => {
     if (actioning) return;
     setActioning(type);
@@ -168,17 +171,12 @@ function WorkerCard({ session, activity, selected, onSelect, onFocus, onAction }
     finally { setActioning(""); }
   };
   return (
-    <article className={`worker-card ${selected ? "is-selected" : ""} ${actioning ? "is-actioning" : ""}`} tabIndex="0" onClick={onSelect} onDoubleClick={onFocus} onKeyDown={event => event.key === "Enter" && onFocus()}>
-      <div className="worker-card__top">
-        <div className="worker-identity"><span className={`status-orbit status-${session.status}`}><i /></span><div><strong>{session.name}</strong><span>{session.command}</span></div></div>
-        <span className="worker-runtime">{runtime(session)}</span>
-      </div>
-      <div className="worker-signal">
-        <span className={`signal-line ${session.isAlive ? "is-live" : ""}`} />
-        <span>{summary}</span>
-      </div>
-      <div className="worker-card__meta"><span>PTY</span><span>{session.autoStart ? "Restores automatically" : "Manual start"}</span><span>{timeAgo(session.lastOutputAt)} ago</span></div>
-      <div className="worker-card__actions">
+    <article className={`worker-card reference-worker-card state-${state} ${selected ? "is-selected" : ""} ${actioning ? "is-actioning" : ""}`} tabIndex="0" onClick={onSelect} onDoubleClick={onFocus} onKeyDown={event => event.key === "Enter" && onFocus()}>
+      <div className="reference-worker-card__top"><div><span className="reference-worker-kind"><Icon name={kind === "AI agent" ? "agents" : kind === "Test watcher" ? "attention" : "terminal"} size={12}/>{kind}</span><strong>{session.name}</strong></div><span className={`reference-status-pill ${state}`}><i/>{stateLabel}</span></div>
+      <code className="reference-worker-command">{session.command} {(session.args || []).join(" ")}</code>
+      <div className={`reference-log-preview ${state}`}><Icon name="arrow" size={10}/><span>{summary}</span></div>
+      <div className="reference-worker-foot"><span>{session.isAlive ? runtime(session) : `${timeAgo(session.lastOutputAt)} ago`}</span><span>{session.autoStart ? "Auto restore" : "Manual"}</span></div>
+      <div className="worker-card__actions reference-worker-actions">
         {session.attentionRequired && <button className={actioning === "acknowledge" ? "is-running" : ""} disabled={Boolean(actioning)} onClick={event => { event.stopPropagation(); runAction("acknowledge"); }}>Acknowledge</button>}
         <button className={actioning === "restart" || actioning === "start" ? "is-running" : ""} disabled={Boolean(actioning)} onClick={event => { event.stopPropagation(); runAction(session.isAlive ? "restart" : "start"); }}>{actioning === "restart" ? "Restarting…" : actioning === "start" ? "Starting…" : session.isAlive ? "Restart" : "Start"}</button>
         <button className="focus-action" onClick={event => { event.stopPropagation(); onFocus(); }}>Focus <Icon name="arrow" size={13}/></button>
@@ -193,10 +191,9 @@ function ProjectPulse({ sessions, workspace, activity, onNavigate }) {
   const agents = sessions.filter(item => item.id.startsWith("agent-")).length;
   const latest = activity.at(-1);
   return (
-    <section className={`project-pulse pulse-${health.tone}`}>
-      <div className="pulse-core"><div className="pulse-ring"><div className="pulse-state"><i/><small>Project state</small><strong>{health.label}</strong></div></div></div>
-      <div className="pulse-story"><span className="section-kicker">PROJECT PULSE</span><h2>{health.label}</h2><p>{health.detail}. {running ? `${running} worker${running === 1 ? " is" : "s are"} running` : "Your workspace is quiet"}{agents ? ` with ${agents} AI engineer${agents === 1 ? "" : "s"} available.` : "."}</p><button className="next-action" onClick={() => onNavigate(health.tone === "healthy" ? "workspace" : "needs")}>{health.tone === "healthy" ? "Enter workspace" : "Review what needs you"}<Icon name="arrow" size={15}/></button></div>
-      <div className="pulse-trail"><span>Latest change</span><strong>{latest ? eventTitle(latest) : "Workspace connected"}</strong><small>{latest ? `${timeAgo(latest.timestamp)} ago` : "just now"}</small></div>
+    <section className={`reference-pulse pulse-${health.tone}`}>
+      <div className="reference-pulse__ring"><svg viewBox="0 0 148 148"><circle className="track" cx="74" cy="74" r="67"/><circle className="sweep" cx="74" cy="74" r="67"/></svg><div><strong>{running}/{sessions.length}</strong><span>WORKERS LIVE</span></div></div>
+      <div className="reference-pulse__body"><span className="pulse-kicker"><i/> PROJECT PULSE</span><h2>{health.detail}.</h2><p>{running ? `${running} worker${running === 1 ? " is" : "s are"} running` : "Your workspace is quiet"}{agents ? ` with ${agents} AI engineer${agents === 1 ? "" : "s"} available.` : "."} {latest ? `Latest: ${eventTitle(latest)}, ${timeAgo(latest.timestamp)} ago.` : "The workspace is connected."}</p><div><button className="reference-btn primary" onClick={() => onNavigate(health.tone === "healthy" ? "workspace" : "needs")}>{health.tone === "healthy" ? "Open workspace" : "Review attention"}<Icon name="arrow" size={13}/></button><button className="reference-btn" onClick={() => onNavigate("workspace")}>Open workstation</button></div></div>
     </section>
   );
 }
@@ -274,9 +271,12 @@ function WorkerQuickLook({ session, activity, onAction, onOpenTerminal }) {
 
 function AgentRail({ sessions, activity, selectedId, onSelect, onNavigate }) {
   const agents = sessions.filter(item => item.id.startsWith("agent-"));
-  const selected = agents.find(item => item.id === selectedId) || agents[0];
-  const latest = sessionEvents(selected, activity, 1)[0];
-  return <aside className="agent-rail"><header><div><span className="section-kicker">LIVE AGENTS</span><strong>{agents.filter(item => item.isAlive).length} running</strong></div><button className="agent-rail__add" onClick={() => onNavigate("agents")}><Icon name="plus" size={13}/> Add agent</button></header><div className="agent-rail__list">{agents.length ? agents.map(agent => <button key={agent.id} className={selected?.id === agent.id ? "is-open" : ""} onClick={() => onSelect(agent.id)}><span className={`agent-mini-avatar status-${agent.status}`}>{agent.name.slice(0,1)}</span><span><strong>{agent.name.replace(" agent", "")}</strong><small>{agent.isAlive ? "Working now" : agent.status}</small></span><i/></button>) : <div className="agent-rail__empty"><Icon name="agents"/><strong>No agents assigned</strong><span>Bring a local AI engineer into this workspace.</span><button onClick={() => onNavigate("agents")}><Icon name="plus" size={13}/> Add your first agent</button></div>}</div>{selected && <div className="agent-rail__summary" key={selected.id}><span className="section-kicker">AGENT SUMMARY</span><h4>{selected.isAlive ? "In progress" : "Standing by"}</h4><p>{sessionSummary(selected, activity)}</p><dl><div><dt>Agent</dt><dd>{selected.name.replace(" agent", "")}</dd></div><div><dt>Command</dt><dd><code>{selected.command}</code></dd></div><div><dt>Runtime</dt><dd>{runtime(selected)}</dd></div><div><dt>Recent activity</dt><dd>{latest ? eventTitle(latest) : "No recent event"}</dd></div><div><dt>Last output</dt><dd>{timeAgo(selected.lastOutputAt)} ago</dd></div></dl><button onClick={() => onNavigate("agents")}>Open conversation <Icon name="arrow" size={13}/></button></div>}</aside>;
+  const recent = [...activity].reverse().slice(0, 6);
+  return <aside className="reference-side-col">
+    <section className="reference-side-panel"><header><div><span>LIVE AGENTS · AI WORKFORCE</span><strong>{agents.filter(item => item.isAlive).length} active · {agents.length} total</strong></div><button onClick={() => onNavigate("agents")}><Icon name="plus" size={12}/> Add</button></header><div className="reference-agent-list">{agents.length ? agents.map(agent => <button key={agent.id} className={selectedId === agent.id ? "is-selected" : ""} onClick={() => onSelect(agent.id)}><span className="reference-agent-avatar">{agent.name.slice(0,2).toUpperCase()}<i className={agent.attentionRequired ? "risk" : agent.isAlive ? "live" : ""}/></span><span><strong>{agent.name}</strong><small>{agent.attentionRequired ? "Needs you" : agent.isAlive ? "Working now" : "Standing by"}</small></span></button>) : <p className="reference-side-empty">No agents assigned to this project.</p>}</div></section>
+    <section className="reference-side-panel"><header><div><span>RECENT ACTIVITY</span><strong>Latest engine events</strong></div></header><div className="reference-activity-feed">{recent.length ? recent.map((event, index) => <article key={`${event.sequence || index}-${event.type}`}><span className={/failed|error/i.test(String(event.type)) ? "danger" : /attention/i.test(String(event.type)) ? "warning" : "success"}><i/>{index < recent.length - 1 && <b/>}</span><div><p><strong>{event.name || event.id || event.sessionId || "Mission Control"}</strong> {eventTitle(event)}</p><small>{timeAgo(event.timestamp)} ago</small></div></article>) : <p className="reference-side-empty">Activity will appear as workers change state.</p>}</div></section>
+    <section className="reference-side-panel"><header><div><span>MISSION COMMAND</span><strong>Keyboard-first</strong></div></header><div className="reference-tip"><Icon name="command" size={14}/><span><kbd>Ctrl K</kbd> opens Mission Command from anywhere.</span></div><div className="reference-tip"><Icon name="attention" size={14}/><span>Hold <kbd>Space</kbd> on a worker for Quick Look.</span></div></section>
+  </aside>;
 }
 
 function LiveGroundstationView({ sessions, workspace, activity, unseenActivity, selectedId, onSelect, onFocus, onAction, onNavigate, onDismissActivity }) {
@@ -311,13 +311,23 @@ function LiveGroundstationView({ sessions, workspace, activity, unseenActivity, 
 }
 
 function GroundstationView({ sessions, workspace, activity, unseenActivity, selectedId, onSelect, onFocus, onAction, onNavigate, onDismissActivity }) {
-  const visible = sessions.slice(0, 6);
-  return <div className="groundstation-layout"><div className="groundstation-view">
+  const [filter, setFilter] = React.useState("all");
+  const [query, setQuery] = React.useState("");
+  const counts = { all: sessions.length, live: sessions.filter(item => item.isAlive).length, review: sessions.filter(item => item.attentionRequired && item.status !== "failed").length, failed: sessions.filter(item => item.status === "failed").length, idle: sessions.filter(item => !item.isAlive && item.status !== "failed").length };
+  const visible = sessions.filter(item => (filter === "all" || (filter === "live" && item.isAlive) || (filter === "review" && item.attentionRequired && item.status !== "failed") || (filter === "failed" && item.status === "failed") || (filter === "idle" && !item.isAlive && item.status !== "failed")) && `${item.name} ${item.command}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12);
+  const uptimeMinutes = sessions.filter(item => item.startedAt).reduce((sum, item) => sum + Math.max(0, Date.now() - Number(item.startedAt)), 0) / 60000;
+  const completed = activity.filter(item => /exit|completed|stopped/i.test(String(item.type))).length;
+  const failures = activity.filter(item => /failed|error/i.test(String(item.type))).length;
+  const successRate = completed ? Math.max(0, Math.round(((completed - failures) / completed) * 100)) : 100;
+  return <div className="groundstation-layout reference-groundstation"><div className="groundstation-view">
+    <header className="reference-page-head"><h1>Groundstation</h1><p>What&apos;s happening, and what needs you next.</p></header>
+    <section className="reference-stats" aria-label="Workspace statistics"><article><span>UPTIME TODAY</span><strong>{Math.floor(uptimeMinutes / 60)}<small>h</small> {Math.round(uptimeMinutes % 60)}<small>m</small></strong><p>Across {sessions.length} workers</p></article><article><span>COMPLETED TODAY</span><strong>{completed}</strong><p>{activity.length} recorded events</p></article><article className={failures ? "has-warning" : ""}><span>SUCCESS RATE</span><strong>{successRate}<small>%</small></strong><p>{failures ? `${failures} failure${failures === 1 ? "" : "s"} recorded` : "No failures recorded"}</p></article><article><span>CONNECTIONS</span><strong>{counts.live}<small>/{sessions.length}</small></strong><p>{counts.live === sessions.length ? "All workers reachable" : `${sessions.length - counts.live} workers offline`}</p></article></section>
     <ProjectPulse sessions={sessions} workspace={workspace} activity={activity} onNavigate={onNavigate}/>
     <SinceLastCheck events={unseenActivity} onReview={() => onNavigate("history")} onDismiss={onDismissActivity}/>
     <AttentionShelf sessions={sessions} onFocus={onFocus} onAction={onAction} onNavigate={onNavigate}/>
     <div className="canvas-heading"><div><span className="section-kicker">LIVE PROJECT SCENE</span><h3>Workers by operational role</h3><small>Select a worker · Hold Space for Quick Look · Double-click to focus</small></div><button className="text-action" onClick={() => onNavigate("workspace")}>Open workstation <Icon name="arrow" size={14}/></button></div>
-    <div className="worker-canvas">{visible.length ? visible.map(session => <div className={`worker-scene-item kind-${workerKind(session).toLowerCase().replaceAll(" ", "-")}`} key={session.id}><span className="worker-kind">{workerKind(session)}</span><WorkerCard session={session} activity={activity} selected={session.id === selectedId} onSelect={() => onSelect(session.id)} onFocus={() => onFocus(session.id)} onAction={onAction}/></div>) : <EmptyState title="A quiet workspace" detail="Add your first worker and Mission Control will begin supervising it."/>}</div>
+    <div className="reference-worker-toolbar">{[["all","All"],["live","Live"],["review","Review"],["failed","Failed"],["idle","Idle"]].map(([value,label]) => <button key={value} className={`${filter === value ? "is-active" : ""} filter-${value}`} onClick={() => setFilter(value)}>{label} <span>{counts[value]}</span></button>)}<label><Icon name="search" size={12}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter workers…"/></label></div>
+    <div className="worker-canvas">{visible.length ? visible.map(session => <div className={`worker-scene-item kind-${workerKind(session).toLowerCase().replaceAll(" ", "-")}`} key={session.id}><span className="worker-kind">{workerKind(session)}</span><WorkerCard session={session} activity={activity} selected={session.id === selectedId} onSelect={() => onSelect(session.id)} onFocus={() => onFocus(session.id)} onAction={onAction}/></div>) : <EmptyState title="No matching workers" detail="Try another status filter or search term."/>}</div>
   </div><AgentRail sessions={sessions} activity={activity} selectedId={selectedId} onSelect={onSelect} onNavigate={onNavigate}/>
   </div>;
 }
@@ -668,7 +678,7 @@ export default function App() {
   if (error && !state) return <div className="boot-screen boot-error"><div className="boot-orbit"><span>!</span></div><h1>Groundstation unavailable</h1><p>{error}</p><button className="primary-button" onClick={refresh}>Reconnect</button></div>;
 
   const renderView = () => {
-    if (view === "groundstation") return <LiveGroundstationView sessions={sessions} workspace={workspace} activity={activity} unseenActivity={unseenActivity} selectedId={selectedWorker} onSelect={setSelectedWorker} onFocus={inspectWorker} onAction={dispatch} onNavigate={setView} onDismissActivity={markHistoryReviewed}/>;
+    if (view === "groundstation") return <GroundstationView sessions={sessions} workspace={workspace} activity={activity} unseenActivity={unseenActivity} selectedId={selectedWorker} onSelect={setSelectedWorker} onFocus={inspectWorker} onAction={dispatch} onNavigate={setView} onDismissActivity={markHistoryReviewed}/>;
     if (view === "workspace") return <WorkspaceView sessions={sessions} workspaceKey={recipeProjectKey} terminalLayout={terminalLayout} focusedId={focusedTerminal} expandedId={expandedTerminal} inspectorOpen={inspectorOpen} terminalFontSize={preferences.terminalFontSize} onInspector={() => setInspectorOpen(value => !value)} onFocus={setFocusedTerminal} onExpand={setExpandedTerminal} onAction={dispatch} onStartWorkspace={startWorkspace} onStopWorkspace={stopWorkspace} onRecipes={() => setRecipesOpen(true)} onAddWorker={() => setWorkerDialog({ mode: "create" })}/>;
     if (view === "needs") return <NeedsView attention={attention} onAction={dispatch} onFocus={inspectWorker}/>;
     if (view === "agents") return <AgentWorkspace sessions={sessions} activity={activity} adapters={agentAdapters} loading={agentsLoading} selectedId={selectedWorker} onSelect={setSelectedWorker} onCreate={createAgent} onAction={dispatch} onOpenTerminal={focusWorker}/>;
