@@ -1,0 +1,11 @@
+{
+  "manifestVersion": 1,
+  "id": "dev.mission-control.docker-health",
+  "name": "Docker Health",
+  "version": "1.0.0",
+  "publisher": "Mission Control examples",
+  "description": "Reads engine-owned container evidence and requests bounded worker recovery actions.",
+  "permissions": ["context.read", "health.read", "worker.lifecycle.request"],
+  "surfaces": ["settings.summary", "context.resource", "health.status", "needs.request"],
+  "actions": [{ "id": "recover-container", "label": "Restart container worker", "type": "worker", "operations": ["restart"] }]
+}

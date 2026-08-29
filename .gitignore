@@ -1,0 +1,16 @@
+node_modules/
+termctl.config.json
+.*termctl.config*.lock
+.*.json.lock
+*.log
+*.activity.json
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+coverage/
+dist/
+*.tgz
+
+# Claude Code — local-only overrides (per-machine API keys, etc.) should not be committed
+.claude/settings.local.json

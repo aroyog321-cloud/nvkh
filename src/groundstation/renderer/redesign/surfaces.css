@@ -1,0 +1,327 @@
+/* ===========================================================================
+   Mission Control — shared surface primitives
+
+   One vocabulary for panels, buttons, badges, menus and overlays so a
+   failure, a statistic and a preference stop carrying the same visual weight.
+   ======================================================================== */
+
+/* ------------------------------------------------------------------ panels */
+
+.shell :is(
+  .pm-card, .settings-panel, .reference-side-panel, .reference-stats article,
+  .mc-ref-panel, .mc-ref-readout article, .mc-ref-section, .integration-row,
+  .integration-directory > div > button, .recipe-row, .recipe-launch-card,
+  .need-item, .agent-mission-card, .agent-recent-card, .agent-summary-metrics,
+  .history-evidence-strip, .history-chapters, .memory-briefing, .memory-state-split,
+  .project-card, .now-summary, .groundstation-recipes, .supervision-briefing
+) {
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-md) !important;
+  box-shadow: none !important;
+}
+.shell :is(.pm-card--interactive, .integration-row, .recipe-launch-card):hover {
+  border-color: var(--mc-border-strong) !important;
+  background: var(--mc-surface-2) !important;
+}
+.shell :is(.pm-card--selected, .is-selected).pm-card {
+  border-color: var(--mc-accent-line) !important;
+  background: var(--mc-surface-2) !important;
+}
+
+/* Domain identity stays small: a tinted border, never a full wash or a
+   thick side tab. */
+.shell .pm-card--feat-ai,
+.shell .pm-card--feat-recipe,
+.shell .integration-feature-callout {
+  border-color: color-mix(in srgb, var(--mc-ai) 30%, var(--mc-border)) !important;
+}
+.shell .pm-card--feat-vscode {
+  border-color: color-mix(in srgb, var(--mc-accent) 30%, var(--mc-border)) !important;
+}
+
+/* Page hero: calmer, no gradient slab. */
+.shell :is(.pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+           .agents-hero, .history-hero, .needs-hero, .mc-ref-hero, .groundstation-hero) {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
+/* ----------------------------------------------------------------- buttons */
+
+.shell :is(.btn-primary, .btn-secondary, .btn-ghost, .btn-danger, .btn-ai, .primary-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--mc-radius-sm);
+  font-size: var(--ui-control);
+  font-weight: 560;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.shell :is(.btn-primary, .primary-button) {
+  color: var(--mc-text-ink);
+  background: var(--mc-accent);
+  border: 1px solid transparent;
+  font-weight: 640;
+}
+.shell :is(.btn-primary, .primary-button):hover { background: var(--mc-accent-strong); }
+.shell .btn-secondary {
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+}
+.shell .btn-secondary:hover { color: var(--mc-text); background: var(--mc-surface-3); border-color: var(--mc-border-strong); }
+.shell .btn-ghost {
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.shell .btn-ghost:hover { color: var(--mc-text); background: rgba(255, 255, 255, .04); }
+.shell .btn-danger {
+  color: var(--mc-danger);
+  background: var(--mc-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--mc-danger) 32%, transparent);
+}
+.shell .btn-danger:hover { color: #fff; background: var(--mc-danger); border-color: transparent; }
+.shell .btn-ai {
+  color: var(--mc-text);
+  background: var(--mc-ai-soft);
+  border: 1px solid color-mix(in srgb, var(--mc-ai) 34%, transparent);
+}
+.shell .btn-ai:hover { border-color: var(--mc-ai); }
+.shell .btn-ai > span:first-child { color: var(--mc-ai); font-weight: 800; }
+
+/* --------------------------------------------------------- badges + pills */
+
+.shell :is(.reference-status-pill, .integration-state strong, .recipe-row-title span,
+           .agent-state, .risk-chip) {
+  font-variant-numeric: tabular-nums;
+}
+.shell .tone-ready, .shell .is-ready { color: var(--mc-ok); }
+.shell .tone-waiting, .shell .has-attention { color: var(--mc-warning); }
+.shell .tone-error, .shell .has-risk { color: var(--mc-danger); }
+
+/* status dots / orbits — one semantic key */
+.shell :is(.status-dot, .status-orbit) i,
+.shell .recipe-status-dot,
+.shell .integration-health span,
+.shell .recipe-chain__node.is-idle b::before { background: var(--mc-text-dim); }
+.shell :is(.status-running, .status-live) i,
+.shell .tone-running i { background: var(--mc-accent) !important; box-shadow: 0 0 8px var(--mc-accent-soft); }
+.shell .status-starting i, .shell .tone-active i { background: var(--mc-warning) !important; }
+.shell :is(.status-failed, .status-attention) i,
+.shell .tone-failed i, .shell .tone-attention i { background: var(--mc-danger) !important; }
+
+/* --------------------------------------------------------- menus + popovers */
+
+.shell ~ * :is(.radix-menu, .terminal-action-menu, .terminal-session-menu,
+                .empty-pane-menu, .recipe-dependency-menu, .resources-popover),
+:is(.radix-menu, .terminal-action-menu, .terminal-session-menu,
+    .empty-pane-menu, .recipe-dependency-menu, .resources-popover) {
+  padding: 6px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-shadow-float);
+}
+:is(.radix-menu, .terminal-action-menu) :is([role="menuitem"], .terminal-action-item) {
+  border-radius: var(--mc-radius-xs);
+}
+:is(.radix-menu, .terminal-action-menu) :is([role="menuitem"], .terminal-action-item):is(:hover, [data-highlighted]) {
+  background: var(--mc-accent-soft);
+}
+.terminal-action-item.is-danger { color: var(--mc-danger); }
+.terminal-action-item.is-warning { color: var(--mc-warning); }
+
+/* --------------------------------------------------- overlays + dialogs */
+
+:is(.palette-backdrop, .dialog-backdrop, .recipes-backdrop, .quicklook-backdrop,
+    .confirmation-backdrop, .worker-focus-backdrop, .agent-picker-backdrop) {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 5, 7, .62);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+:is(.command-palette, .recipes-dialog, .worker-dialog, .confirmation-dialog,
+    .worker-focus-dialog, .mission-graph-dialog, .agent-picker) {
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border-strong) !important;
+  border-radius: var(--mc-radius-lg) !important;
+  box-shadow: var(--mc-shadow-float) !important;
+  color: var(--mc-text);
+}
+:is(.command-palette, .recipes-dialog, .worker-dialog, .worker-focus-dialog)
+  :is(h1, h2, [id$="-title"]) { letter-spacing: -.015em; }
+
+/* toast */
+.shell .toast {
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-shadow-2);
+}
+.shell .toast i { background: var(--mc-accent); }
+.shell .toast-error { border-color: color-mix(in srgb, var(--mc-danger) 40%, transparent); }
+
+/* ------------------------------------------------ workspace action density */
+
+.terminal-action-menu {
+  width: min(250px, calc(100vw - 24px));
+}
+.terminal-action-menu .terminal-action-item {
+  display: grid;
+  min-height: 42px;
+  align-content: center;
+  gap: 2px;
+  padding: var(--mc-space-2) var(--mc-space-3);
+  line-height: 1.3;
+}
+.terminal-action-menu .terminal-action-item.is-compact {
+  min-height: 32px;
+  padding-block: var(--mc-space-1);
+}
+.terminal-action-menu .terminal-action-item > span {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 620;
+}
+.terminal-action-menu .terminal-action-item > small {
+  color: var(--mc-text-dim);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+.terminal-action-menu .terminal-action-separator {
+  height: 1px;
+  margin: var(--mc-space-1) var(--mc-space-2);
+  background: var(--mc-hairline);
+}
+
+/* -------------------------------------------------- worker definition form */
+
+.worker-dialog .dialog-header .eyebrow {
+  display: block;
+  width: fit-content;
+  min-height: 0;
+  padding: 0;
+  color: var(--mc-text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  line-height: 1.2;
+}
+.worker-dialog .worker-dialog-header-actions {
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+.worker-dialog .worker-dialog-ai {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: var(--mc-space-1);
+  padding: 0 var(--mc-space-2);
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+  font-size: 10px;
+  font-weight: 560;
+  transition: color var(--mc-motion-fast), background var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.worker-dialog .worker-dialog-ai > span {
+  color: var(--mc-ai);
+  font: 750 9px/1 var(--mc-font-mono);
+}
+.worker-dialog .worker-dialog-ai:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-2);
+  border-color: var(--mc-border);
+}
+.worker-dialog .worker-dialog-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-3) var(--mc-space-4);
+  border-bottom: 1px solid var(--mc-hairline);
+}
+.worker-dialog .worker-dialog-guide > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--mc-space-2);
+}
+.worker-dialog .worker-dialog-guide > div > b {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--mc-accent-strong);
+  background: var(--mc-accent-soft);
+  border: 1px solid var(--mc-accent-line);
+  border-radius: var(--mc-radius-pill);
+  font: 700 10px/1 var(--mc-font-mono);
+}
+.worker-dialog .worker-dialog-guide > div > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.worker-dialog .worker-dialog-guide strong {
+  color: var(--mc-text-soft);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+.worker-dialog .worker-dialog-guide small {
+  color: var(--mc-text-dim);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+.worker-dialog .dialog-body {
+  padding-bottom: calc(var(--mc-space-8) + var(--mc-space-2));
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0, black calc(100% - 24px), transparent 100%);
+}
+.worker-dialog .worker-template-section {
+  min-width: 0;
+  padding: var(--mc-space-4);
+  border-color: var(--mc-hairline);
+}
+.worker-dialog .worker-template-card {
+  min-width: 0;
+  padding: var(--mc-space-3);
+}
+.worker-dialog .worker-template-card code {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
+.worker-dialog .worker-form-heading {
+  padding-top: var(--mc-space-4);
+  border-top: 1px solid var(--mc-hairline);
+  border-bottom-color: var(--mc-hairline);
+}
+.worker-dialog .worker-form > :is(.form-check, .terminal-toggle-card) {
+  border-color: var(--mc-hairline);
+}
+
+@media (max-width: 760px) {
+  .worker-dialog .worker-dialog-guide { grid-template-columns: 1fr; }
+  .worker-dialog .worker-dialog-ai { width: 28px; justify-content: center; overflow: hidden; white-space: nowrap; }
+  .worker-dialog .worker-dialog-ai > span { flex: 0 0 auto; }
+}

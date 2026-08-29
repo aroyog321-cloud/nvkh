@@ -1,0 +1,623 @@
+/* ===========================================================================
+   Mission Control — base layer (shell geometry, type, focus, motion)
+
+   Ends the ~15-way `.shell` grid conflict with ONE authoritative rule and
+   normalises the shared reading grammar. Scoped tight enough to win over the
+   historical `!important` rules without introducing new ones where avoidable.
+   ======================================================================== */
+
+/* ------------------------------------------------------------ shell layout
+
+   The sidebar is a deliberate icon rail (labels live in tooltips + the command
+   palette, per the Experience Audit). Match its width exactly so there is no
+   dead column beside it. */
+
+html body #root .shell {
+  display: grid !important;
+  grid-template-columns: 64px minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+  background: var(--mc-void) !important;
+  color: var(--mc-text);
+  font-family: var(--font-family-ui, "Inter", "Segoe UI", system-ui, sans-serif);
+}
+@media (max-width: 720px) {
+  html body #root .shell { grid-template-columns: 52px minmax(0, 1fr) !important; }
+}
+
+.shell .main-area { min-width: 0; min-height: 0; overflow: hidden; background: var(--mc-void); }
+.shell .experience {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--mc-space-6) var(--mc-space-8) var(--mc-space-8);
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--mc-canvas);
+}
+/* Match the loaded premiumV3 selector so its scrollable Workspace rule cannot
+   win on specificity and retain a stale scroll/anchor position. */
+html body #root .shell > .main-area > .experience.view-workspace {
+  height: auto;
+  align-self: stretch;
+  padding: 10px !important;
+  overflow: hidden !important;
+  background: var(--mc-void) !important;
+}
+
+/* Nothing inside a screen may push the page wider than its column. */
+.shell .experience > * { max-width: 100%; }
+.shell :is(.mc-ref-groundstation, .needs-view, .history-view, .agents-view,
+           .integrations-page, .recipes-page, .settings-hub, .projects-view) {
+  min-width: 0;
+  max-width: 1360px;
+  margin-inline: auto;
+}
+.shell :is(.mc-ref-manifest-row, .mc-ref-readout, .need-item, .integration-row,
+           .recipe-row) { min-width: 0; max-width: 100%; }
+
+/* --------------------------------------------------------------- type scale */
+
+.shell {
+  --ui-body: 13.5px;
+  --ui-control: 13px;
+  --ui-meta: 12px;
+  --ui-kicker: 11px;
+  font-size: var(--ui-body);
+  line-height: 1.5;
+}
+.shell.type-compact { --ui-body: 12.5px; --ui-control: 12px; --ui-meta: 11px; --ui-kicker: 10.5px; }
+.shell.type-large { --ui-body: 15px; --ui-control: 14px; --ui-meta: 13px; --ui-kicker: 12px; }
+
+.shell .experience :is(h1) { font-size: clamp(22px, 2.4vw, 30px); font-weight: 600; letter-spacing: -.02em; }
+.shell .experience :is(h2) { font-size: clamp(17px, 1.6vw, 21px); font-weight: 600; letter-spacing: -.015em; }
+.shell .experience :is(h3) { font-size: 15px; font-weight: 600; }
+.shell .experience p { line-height: 1.55; }
+.shell .section-kicker {
+  color: var(--mc-text-muted);
+  font-size: var(--ui-kicker) !important;
+  font-weight: 700;
+  letter-spacing: .085em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------- focus + motion */
+
+.shell :is(button, a, input, select, textarea, [tabindex="0"], [role="button"], [role="separator"]):focus-visible {
+  outline: none !important;
+  box-shadow: var(--mc-focus-ring);
+  border-radius: var(--mc-radius-xs);
+}
+.shell button { min-height: 32px; }
+
+.shell :is(button, [role="button"], [cmdk-item], .pm-card--interactive) {
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *, .shell *::before, .shell *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------- scrollbars */
+
+.shell *,
+.command-palette *, .recipes-dialog *, .worker-dialog *,
+.worker-focus-dialog *, .radix-menu * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mc-surface-4) transparent;
+}
+.shell *::-webkit-scrollbar,
+.command-palette *::-webkit-scrollbar,
+.recipes-dialog *::-webkit-scrollbar { width: 10px; height: 10px; }
+.shell *::-webkit-scrollbar-thumb,
+.command-palette *::-webkit-scrollbar-thumb,
+.recipes-dialog *::-webkit-scrollbar-thumb {
+  background: var(--mc-surface-4);
+  border: 3px solid transparent;
+  border-radius: var(--mc-radius-pill);
+  background-clip: padding-box;
+}
+.shell *::-webkit-scrollbar-thumb:hover { background: var(--mc-border-strong); background-clip: padding-box; }
+.shell *::-webkit-scrollbar-track,
+.shell *::-webkit-scrollbar-corner { background: transparent; }
+
+/* -------------------------------------------------------- sidebar icon rail
+
+   64px rail, icon targets centred, one thin active marker, tooltips carry the
+   labels. `#root#root` beats the legacy `html body #root .shell > …` chains. */
+
+#root#root .shell > .app-sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 64px !important;
+  min-width: 0 !important;
+  max-width: 64px !important;
+  padding: 12px 0 10px !important;
+  background: var(--mc-void) !important;
+  border-right: 1px solid var(--mc-border) !important;
+  overflow: hidden !important;
+}
+#root#root .shell > .app-sidebar > * { width: 100%; }
+#root#root .shell .app-sidebar__brand {
+  display: flex !important;
+  justify-content: center !important;
+  padding: 0 0 8px !important;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--mc-border);
+}
+#root#root .shell .app-sidebar__brand > div { display: none !important; }
+#root#root .shell .top-brand {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  color: var(--mc-accent-strong);
+  background: var(--mc-accent-soft);
+  border: 1px solid var(--mc-accent-line);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11px; font-weight: 800; letter-spacing: .04em;
+}
+#root#root .shell > .app-sidebar > .top-project {
+  display: grid !important;
+  place-items: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 auto 2px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell > .app-sidebar > .top-project > * { display: none !important; }
+#root#root .shell > .app-sidebar > .top-project > .top-project__mark {
+  display: grid !important;
+  place-items: center !important;
+  width: 30px; height: 30px;
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-xs);
+  font-size: 10px; font-weight: 700;
+}
+#root#root .shell > .app-sidebar > .top-project:hover > .top-project__mark {
+  color: var(--mc-text); border-color: var(--mc-border-strong);
+}
+#root#root .shell > .app-sidebar > .top-navigation {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 2px !important;
+  width: 100% !important;
+  padding: 6px 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+#root#root .shell .top-navigation button {
+  position: relative;
+  display: grid !important;
+  place-items: center !important;
+  width: 44px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  color: var(--mc-text-muted) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .top-navigation button > span { display: none !important; }
+#root#root .shell .top-navigation button:hover { color: var(--mc-text) !important; background: rgba(255, 255, 255, .05) !important; }
+#root#root .shell .top-navigation button.is-current { color: var(--mc-text) !important; background: var(--mc-accent-soft) !important; }
+#root#root .shell .top-navigation button.is-current .icon { color: var(--mc-accent) !important; }
+#root#root .shell .top-navigation button.is-current::before {
+  content: "";
+  position: absolute;
+  left: -12px; top: 50%;
+  width: 2px; height: 18px;
+  background: var(--mc-accent);
+  border-radius: 0 2px 2px 0;
+  transform: translateY(-50%);
+}
+#root#root .shell .top-navigation button b {
+  position: absolute !important;
+  top: 2px !important; right: 2px !important;
+  min-width: 15px; height: 15px;
+  display: grid; place-items: center;
+  padding: 0 3px !important;
+  color: #fff !important;
+  background: var(--mc-danger) !important;
+  border-radius: var(--mc-radius-pill) !important;
+  font-size: 9px !important; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#root#root .shell .app-sidebar__footer {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding-top: 8px !important;
+  border-top: 1px solid var(--mc-border) !important;
+}
+#root#root .shell .app-sidebar__footer .top-search,
+#root#root .shell .app-sidebar__footer .top-ai {
+  display: grid !important;
+  place-items: center !important;
+  width: 44px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  color: var(--mc-text-muted) !important;
+  background: var(--mc-surface-2) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .app-sidebar__footer .top-search span,
+#root#root .shell .app-sidebar__footer .top-search kbd,
+#root#root .shell .app-sidebar__footer .top-ai strong { display: none !important; }
+#root#root .shell .app-sidebar__footer .top-ai { color: var(--mc-ai) !important; font-weight: 800; }
+#root#root .shell .app-sidebar__footer .top-ai.is-current { border-color: var(--mc-ai) !important; background: var(--mc-ai-soft) !important; }
+#root#root .shell .app-sidebar__rail-label { display: none !important; }
+
+/* Tooltip that the rail depends on for discoverability. */
+.shell [data-tooltip] { position: relative; }
+.shell [data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 60;
+  padding: 5px 9px;
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: var(--mc-radius-xs);
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: var(--mc-shadow-2);
+  pointer-events: none;
+}
+
+/* Portalled surfaces sit outside .shell — keep the reading scale. */
+:is(.command-palette, .worker-dialog, .recipes-dialog, .confirmation-dialog,
+    .worker-focus-dialog, .radix-menu, .radix-tooltip, .terminal-session-menu) {
+  font-family: var(--font-family-ui, "Inter", "Segoe UI", system-ui, sans-serif);
+  color: var(--mc-text);
+}
+
+/* ========================================================================
+   2.19 shell contract — a labeled operational sidebar at desktop widths.
+   The earlier icon-only rail hid core capabilities and forced tooltip-driven
+   navigation. The markup already contains useful labels, so this final block
+   restores them without changing engine or route ownership.
+   ===================================================================== */
+
+html body #root .shell {
+  grid-template-columns: 212px minmax(0, 1fr) !important;
+}
+
+html body #root .shell > .main-area {
+  display: grid !important;
+  /* Match premiumV3.css specificity as well as loading after it. Its former
+     bottom-status rule is !important, so a shorter selector cannot override
+     it and leaves every route pinned to a short auto row at the viewport foot. */
+  grid-template-rows: 42px minmax(0, 1fr) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+html body #root .shell > .main-area > .mission-status-bar { grid-row: 1; }
+html body #root .shell > .main-area > .experience { grid-row: 2; }
+
+#root#root .shell .mission-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 42px !important;
+  min-width: 0;
+  padding: 0 14px !important;
+  color: var(--mc-text-muted);
+  background: color-mix(in srgb, var(--mc-surface) 94%, transparent) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+  backdrop-filter: blur(12px);
+}
+#root#root .shell :is(.status-bar-premium__left, .status-bar-premium__right) {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+#root#root .shell .status-bar-premium__project {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  color: var(--mc-text-soft);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .status-bar-premium__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: var(--mc-ok);
+  border-radius: 50%;
+}
+#root#root .shell .status-bar-premium__dot.is-warning { background: var(--mc-warning); }
+#root#root .shell .status-bar-premium__dot.is-danger { background: var(--mc-danger); }
+#root#root .shell .status-bar-premium__meta,
+#root#root .shell .status-bar-premium__crumb {
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font: 10px/1.2 var(--mc-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .status-bar-premium__meta b,
+#root#root .shell .status-bar-premium__crumb b { margin-right: 5px; color: var(--mc-text-muted); font-weight: 650; }
+#root#root .shell .status-bar-premium__meta.is-warn { color: var(--mc-warning); }
+#root#root .shell .status-bar-premium__help { min-height: 26px; }
+
+/* Increment 2: make the status tape read as project, health and location at a
+   glance instead of one uninterrupted line of equally weighted metadata. */
+#root#root .shell .status-bar-premium {
+  min-height: 34px;
+  line-height: 1.3;
+}
+#root#root .shell :is(.status-bar-premium__left, .status-bar-premium__right) {
+  gap: var(--mc-space-2);
+}
+#root#root .shell .status-bar-premium__project {
+  max-width: min(28vw, 260px);
+  min-height: 24px;
+  padding: 0 var(--mc-space-2);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-pill);
+  font-size: 11px;
+  line-height: 1.3;
+}
+#root#root .shell .status-bar-premium__indicator {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: var(--mc-space-1);
+  padding: 0 var(--mc-space-2);
+  color: var(--mc-ok);
+  background: var(--mc-ok-soft);
+  border: 1px solid color-mix(in srgb, var(--mc-ok) 24%, var(--mc-border));
+  border-radius: var(--mc-radius-pill);
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+#root#root .shell .status-bar-premium__indicator.is-warning {
+  color: var(--mc-warning);
+  background: var(--mc-warning-soft);
+  border-color: color-mix(in srgb, var(--mc-warning) 28%, var(--mc-border));
+}
+#root#root .shell .status-bar-premium__indicator.is-danger {
+  color: var(--mc-danger);
+  background: var(--mc-danger-soft);
+  border-color: color-mix(in srgb, var(--mc-danger) 28%, var(--mc-border));
+}
+#root#root .shell .status-bar-premium__indicator i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+}
+#root#root .shell .status-bar-premium__crumb {
+  padding-left: var(--mc-space-3);
+  border-left: 1px solid var(--mc-hairline);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+#root#root .shell .status-bar-premium__right .status-bar-premium__meta {
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+#root#root .shell .status-bar-premium__right .status-bar-premium__meta:nth-child(2) {
+  padding-right: var(--mc-space-3);
+  border-right: 1px solid var(--mc-hairline);
+}
+#root#root .shell .status-bar-premium__help {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: var(--mc-space-1);
+  padding: 0 var(--mc-space-2);
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-xs);
+  font-size: 10px;
+  line-height: 1;
+  transition: color var(--mc-motion-fast), background var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+#root#root .shell .status-bar-premium__help:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+#root#root .shell .status-bar-premium__help kbd {
+  margin: 0;
+  color: var(--mc-text-dim);
+  background: transparent;
+  border: 0;
+}
+
+#root#root .shell > .app-sidebar {
+  align-items: stretch !important;
+  gap: 8px !important;
+  width: 212px !important;
+  max-width: 212px !important;
+  padding: 14px 10px 10px !important;
+  overflow: hidden auto !important;
+  background: linear-gradient(180deg, var(--mc-surface), var(--mc-void) 78%) !important;
+}
+
+#root#root .shell .app-sidebar__brand {
+  justify-content: flex-start !important;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 13px !important;
+  margin: 0 !important;
+}
+#root#root .shell .app-sidebar__brand > div {
+  display: flex !important;
+  min-width: 0;
+  flex-direction: column;
+}
+#root#root .shell .app-sidebar__brand > div strong {
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .app-sidebar__brand > div small {
+  color: var(--mc-text-dim);
+  font-size: 10px;
+}
+
+#root#root .shell > .app-sidebar > .top-project {
+  display: grid !important;
+  grid-template-columns: 30px minmax(0, 1fr) auto !important;
+  place-items: center start !important;
+  gap: 9px;
+  width: 100% !important;
+  height: 50px !important;
+  margin: 0 !important;
+  padding: 7px 8px !important;
+  background: var(--mc-surface-2) !important;
+  border: 1px solid var(--mc-border) !important;
+}
+#root#root .shell > .app-sidebar > .top-project > * { display: initial !important; }
+#root#root .shell > .app-sidebar > .top-project > div {
+  display: flex !important;
+  min-width: 0;
+  flex-direction: column;
+}
+#root#root .shell > .app-sidebar > .top-project small {
+  color: var(--mc-text-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+#root#root .shell > .app-sidebar > .top-project strong {
+  overflow: hidden;
+  max-width: 125px;
+  color: var(--mc-text-soft);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell > .app-sidebar > .top-project > i { color: var(--mc-text-dim); font-style: normal; }
+
+#root#root .shell > .app-sidebar > .top-navigation {
+  align-items: stretch !important;
+  gap: 3px !important;
+  padding: 4px 0 !important;
+}
+#root#root .shell .top-navigation button {
+  display: grid !important;
+  grid-template-columns: 22px minmax(0, 1fr) auto !important;
+  place-items: center start !important;
+  gap: 9px;
+  width: 100% !important;
+  height: 38px !important;
+  padding: 0 10px !important;
+}
+#root#root .shell .top-navigation button > span {
+  display: block !important;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .top-navigation button.is-current::before { left: -10px; }
+#root#root .shell .top-navigation button b {
+  position: static !important;
+  justify-self: end;
+}
+
+#root#root .shell .app-sidebar__footer {
+  align-items: stretch !important;
+  gap: 6px !important;
+}
+#root#root .shell .app-sidebar__footer .top-search,
+#root#root .shell .app-sidebar__footer .top-ai {
+  display: grid !important;
+  grid-template-columns: 22px minmax(0, 1fr) auto !important;
+  place-items: center start !important;
+  gap: 8px;
+  width: 100% !important;
+  padding: 0 9px !important;
+}
+#root#root .shell .app-sidebar__footer .top-search span,
+#root#root .shell .app-sidebar__footer .top-search kbd,
+#root#root .shell .app-sidebar__footer .top-ai strong { display: block !important; }
+#root#root .shell .app-sidebar__footer .top-search span,
+#root#root .shell .app-sidebar__footer .top-ai strong { font-size: 11.5px; font-weight: 600; }
+#root#root .shell .app-sidebar__footer .top-search kbd {
+  color: var(--mc-text-dim);
+  background: transparent;
+  border: 0;
+  font-size: 9px;
+}
+
+/* Labels make desktop tooltips redundant. Keep them only for the genuinely
+   collapsed fallback. */
+@media (min-width: 761px) {
+  .shell [data-tooltip]:hover::after { display: none; }
+}
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  html body #root .shell { grid-template-columns: 184px minmax(0, 1fr) !important; }
+  #root#root .shell > .app-sidebar { width: 184px !important; max-width: 184px !important; }
+  #root#root .shell > .app-sidebar > .top-project strong { max-width: 98px; }
+}
+
+@media (max-width: 760px) {
+  html body #root .shell { grid-template-columns: 58px minmax(0, 1fr) !important; }
+  #root#root .shell > .app-sidebar { width: 58px !important; max-width: 58px !important; padding-inline: 7px !important; }
+  #root#root .shell .app-sidebar__brand { justify-content: center !important; padding-inline: 0 !important; }
+  #root#root .shell .app-sidebar__brand > div,
+  #root#root .shell > .app-sidebar > .top-project > div,
+  #root#root .shell > .app-sidebar > .top-project > i,
+  #root#root .shell .top-navigation button > span,
+  #root#root .shell .app-sidebar__footer .top-search span,
+  #root#root .shell .app-sidebar__footer .top-search kbd,
+  #root#root .shell .app-sidebar__footer .top-ai strong { display: none !important; }
+  #root#root .shell > .app-sidebar > .top-project,
+  #root#root .shell .top-navigation button,
+  #root#root .shell .app-sidebar__footer .top-search,
+  #root#root .shell .app-sidebar__footer .top-ai {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    place-items: center !important;
+    width: 44px !important;
+    margin-inline: auto !important;
+    padding: 0 !important;
+  }
+}

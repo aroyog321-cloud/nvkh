@@ -1,0 +1,2003 @@
+/* ===========================================================================
+   Mission Control — per-screen redesign pass
+
+   Structural fixes the audit called out: bounded dialog scrolling, a sticky
+   Recipe Creator save action, a persistent Settings category rail, and a
+   calmer Groundstation / Needs You hierarchy. Behaviour is untouched.
+   ======================================================================== */
+
+/* ==================================================== Recipe Creator dialog */
+
+.recipes-dialog.recipes-dialog-v2 {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(1060px, 94vw) !important;
+  max-height: min(88vh, 920px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.recipes-dialog.recipes-dialog-v2 > header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+}
+.recipes-dialog.recipes-dialog-v2 .recipes-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 16px 20px 20px !important;
+  overflow: hidden !important;
+}
+
+@media (min-width: 920px) {
+  .recipes-dialog.recipes-dialog-v2 .recipes-content {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) !important;
+    gap: 18px !important;
+    align-items: start !important;
+  }
+  .recipes-dialog.recipes-dialog-v2 .recipe-builder,
+  .recipes-dialog.recipes-dialog-v2 .recipe-launch-grid {
+    min-height: 0;
+    max-height: calc(min(88vh, 920px) - 128px);
+    overflow-y: auto !important;
+    padding-right: 4px;
+  }
+}
+@media (max-width: 919px) {
+  .recipes-dialog.recipes-dialog-v2 .recipes-content { overflow-y: auto !important; }
+}
+
+.recipes-dialog.recipes-dialog-v2 .recipe-builder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-md) !important;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-save {
+  position: sticky;
+  bottom: -1px;
+  z-index: 4;
+  align-self: stretch;
+  min-height: 38px;
+  margin-top: 4px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, transparent, var(--mc-surface) 42%);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-error {
+  position: sticky;
+  bottom: 46px;
+  z-index: 4;
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--mc-danger);
+  background: var(--mc-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--mc-danger) 34%, transparent);
+  border-radius: var(--mc-radius-xs);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  cursor: pointer;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-advanced-toggle.is-open { border-color: var(--mc-accent-line); }
+
+/* ---------------------------------------------- creator: intro + Mission AI */
+
+/* styles.css stacks this column; the AI request belongs beside the heading. */
+.recipes-dialog.recipes-dialog-v2 .recipe-builder__intro {
+  flex-direction: row !important;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-builder__intro > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-builder__intro > div > span {
+  color: var(--mc-accent);
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: .16em;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-builder__intro strong {
+  margin-top: 5px;
+  color: var(--mc-text);
+  font-size: 14px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-builder__intro small {
+  margin-top: 4px;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.recipes-dialog.recipes-dialog-v2 :is(.recipe-ai-help, .recipe-ai-design) {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 11px;
+  color: var(--mc-ai-strong);
+  background: var(--mc-ai-soft);
+  border: 1px solid color-mix(in srgb, var(--mc-ai) 32%, transparent);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.recipes-dialog.recipes-dialog-v2 :is(.recipe-ai-help, .recipe-ai-design):hover {
+  background: color-mix(in srgb, var(--mc-ai) 20%, transparent);
+  border-color: color-mix(in srgb, var(--mc-ai) 52%, transparent);
+}
+.recipes-dialog.recipes-dialog-v2 :is(.recipe-ai-help, .recipe-ai-design) > span:first-child {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--mc-text-ink);
+  background: var(--mc-ai);
+  border-radius: 50%;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+.recipes-dialog.recipes-dialog-v2 > header .recipe-header-actions > .dialog-close,
+.recipes-dialog.recipes-dialog-v2 > header .recipe-header-actions > button:last-child {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 15px;
+  cursor: pointer;
+}
+.recipes-dialog.recipes-dialog-v2 > header .recipe-header-actions > button:last-child:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-2);
+  border-color: var(--mc-border-strong);
+}
+
+/* ------------------------------------------- creator: workers in this recipe
+
+   `.recipe-simple-workers` had NO rule in any bundled stylesheet — its only
+   styling lived in experience28.css, which 2.19 no longer imports. That is
+   why the heading, the worker name, its command, the order index and the
+   "Starts after…" hint all ran together as one unstyled string, and why the
+   reorder arrows wrapped onto their own line under each row.
+   ======================================================================== */
+
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 9px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > header span {
+  color: var(--mc-accent);
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: .14em;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > header strong {
+  color: var(--mc-text);
+  font-size: 13px;
+  font-weight: 620;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > header > small {
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article.is-selected {
+  background: var(--mc-accent-soft);
+  border-color: var(--mc-accent-line);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  cursor: pointer;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers label > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers label strong {
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers label small {
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font: 10.5px/1.4 var(--mc-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--mc-accent);
+  cursor: pointer;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-order {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 220px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-order > b {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: var(--mc-accent);
+  background: var(--mc-accent-soft);
+  border-radius: var(--mc-radius-xs);
+  font: 700 10px/1 var(--mc-font-mono);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-order > small {
+  overflow: hidden;
+  color: var(--mc-text-muted);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article > div {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article > div button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-xs);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article > div button:hover:not(:disabled) {
+  color: var(--mc-text);
+  border-color: var(--mc-border-strong);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article > div button:disabled {
+  opacity: .32;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------- saved workspaces column */
+
+.recipes-dialog.recipes-dialog-v2 .recipe-launch-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* `<b>name</b><small>root</small>` had no rule, so chain nodes rendered as
+   "Docker stackroot" / "Git statusafter 1". */
+.recipes-dialog.recipes-dialog-v2 .recipe-chain__node {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-chain__node > small {
+  color: var(--mc-text-dim);
+  font-size: 9px;
+  font-weight: 500;
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-launch-meta {
+  display: block;
+  margin-top: 8px;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+}
+/* Delete is destructive but secondary — it should not out-shout Launch. */
+.recipes-dialog.recipes-dialog-v2 .recipe-delete {
+  color: var(--mc-danger) !important;
+  background: var(--mc-danger-soft) !important;
+  border: 1px solid color-mix(in srgb, var(--mc-danger) 30%, transparent) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 720px) {
+  .recipes-dialog.recipes-dialog-v2 .recipe-simple-workers article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .recipes-dialog.recipes-dialog-v2 .recipe-simple-order {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+  .recipes-dialog.recipes-dialog-v2 .recipe-builder__intro {
+    flex-direction: column !important;
+  }
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-dag-editor {
+  padding: 10px;
+  background: var(--mc-canvas);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+.recipes-dialog.recipes-dialog-v2 .recipe-launch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ============================================================= Settings hub */
+
+.shell .settings-hub { width: min(1200px, 100%); margin: 0 auto; }
+.shell .settings-hub__layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.shell .settings-section-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+}
+.shell .settings-section-nav button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--mc-radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.shell .settings-section-nav button:hover { color: var(--mc-text); background: rgba(255, 255, 255, .04); }
+.shell .settings-section-nav button.is-current { color: var(--mc-text); background: var(--mc-accent-soft); }
+.shell .settings-section-nav button.is-current .icon { color: var(--mc-accent); }
+.shell .settings-section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.shell .settings-section > * { margin: 0 !important; }
+.shell .settings-panel {
+  padding: 18px !important;
+}
+.shell .settings-panel__head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.shell .settings-panel__head .icon { color: var(--mc-accent); }
+.shell .setting-control,
+.shell .terminal-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--mc-border);
+}
+.shell .segmented-control { display: inline-flex; gap: 2px; padding: 2px; background: var(--mc-canvas); border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm); }
+.shell .segmented-control button {
+  min-height: 28px;
+  padding: 0 12px;
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--mc-radius-xs);
+  cursor: pointer;
+}
+.shell .segmented-control button.is-selected { color: var(--mc-text); background: var(--mc-surface-3); }
+
+/* Sensitive settings read differently from cosmetic ones: a warning-tone
+   border and a small labelled marker, not a decorative side tab. */
+.shell .settings-hub.feat-mcp .settings-panel,
+.shell .settings-hub.feat-ai .settings-panel,
+.shell .vscode-bridge-settings,
+.shell .mcp-gateway-settings {
+  border-color: color-mix(in srgb, var(--mc-warning) 30%, var(--mc-border)) !important;
+}
+.shell .settings-hub.feat-mcp .settings-panel__head::after,
+.shell .settings-hub.feat-ai .settings-panel__head::after {
+  content: "APPROVAL-GATED";
+  align-self: center;
+  margin-left: auto;
+  padding: 2px 7px;
+  color: var(--mc-warning);
+  background: var(--mc-warning-soft);
+  border-radius: var(--mc-radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+/* ============================================================= Settings hub
+
+   Settings now holds only application preferences (SettingsHub no longer
+   takes an `integrationsOnly` prop or renders a section rail — see App.jsx).
+   `.settings-hub__layout`'s 232px-rail grid above is for the old two-column
+   shape; the single-column variant below is what a rail-less settings page
+   actually needs.
+   ======================================================================== */
+
+/* premiumV3.css:437 forces `display: grid` + a `250px minmax(0,1fr)` rail
+   with `!important`. With the section rail gone there is nothing to put in
+   that first column, so the panels were being dealt into a 250px strip with
+   the rest of the page left empty. Same importance, higher specificity. */
+.shell .settings-hub__layout.settings-hub__layout-single {
+  display: flex !important;
+  flex-direction: column;
+  grid-template-columns: none !important;
+  gap: var(--mc-space-4) !important;
+  width: 100% !important;
+  margin: var(--mc-space-5) auto 0 !important;
+}
+.shell .settings-hub__layout-single > * { width: 100%; min-width: 0; margin: 0 !important; }
+/* styles.css hid this inner hero only under `.settings-section`, a wrapper
+   the rail-less page no longer has — without this the page shows two stacked
+   headings ("Settings" then "Interface and terminal"). */
+.shell .settings-hub__layout-single .settings-view > .settings-hero { display: none; }
+.shell .settings-integrations-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mc-space-3);
+  padding: var(--mc-space-4);
+  color: var(--mc-text);
+  text-align: left;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  cursor: pointer;
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.shell .settings-integrations-link:hover {
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+.shell .settings-integrations-link strong { font-size: 13.5px; font-weight: 650; }
+.shell .settings-integrations-link small {
+  display: block;
+  margin-top: 3px;
+  color: var(--mc-text-dim);
+  font-size: 11.5px;
+}
+.shell .settings-integrations-link > b {
+  flex: 0 0 auto;
+  color: var(--mc-text-muted);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+/* ============================================================ Integrations
+
+   `IntegrationHubView` (IntegrationsView.jsx) is now the single owner of
+   the whole page: header, the horizontal tab strip, the overview directory,
+   and — via `children` from App.jsx — each integration's existing settings
+   panel. The row/mark classes below are new (`.integration-list-row` etc.);
+   the older `.integration-row` / `.integration-mark` rules stay for any
+   historical usage but no longer apply to this screen.
+   ======================================================================== */
+
+.shell .integration-hub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: var(--mc-space-4) 0 var(--mc-space-3);
+  padding-bottom: var(--mc-space-2);
+  border-bottom: 1px solid var(--mc-border);
+}
+.shell .integration-hub-tabs button {
+  padding: 8px 13px;
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--mc-radius-sm);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: color var(--mc-motion-fast), background-color var(--mc-motion-fast);
+}
+.shell .integration-hub-tabs button:hover { color: var(--mc-text); background: var(--mc-surface-2); }
+.shell .integration-hub-tabs button.is-current {
+  color: var(--mc-text);
+  background: var(--mc-accent-soft);
+  border-color: var(--mc-accent-line);
+  font-weight: 620;
+}
+.shell .integration-hub-body { display: flex; flex-direction: column; gap: var(--mc-space-4); }
+
+.shell .integration-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--mc-border);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+}
+.shell .integration-stat {
+  display: grid;
+  gap: 4px;
+  padding: var(--mc-space-3) var(--mc-space-4);
+  background: var(--mc-surface);
+}
+.shell .integration-stat small {
+  color: var(--mc-text-dim);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .09em;
+}
+.shell .integration-stat strong {
+  color: var(--mc-text);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.shell .integration-stat strong.tone-ready { color: var(--mc-ok); }
+.shell .integration-stat strong.tone-waiting { color: var(--mc-warning); }
+
+.shell .integration-list { display: flex; flex-direction: column; gap: 8px; }
+.shell .integration-directory > div,
+.shell .integrations-page .integration-directory > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+/* Beats the rule above: the new directory rows are a single stacked
+   full-width list (matches the requested design), not a card grid. */
+.shell .integration-list.integration-list { display: flex; flex-direction: column; }
+.shell .integration-list-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--mc-space-3);
+  padding: 12px var(--mc-space-4) 12px 18px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+.shell .integration-list-row::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 3px;
+  border-radius: var(--mc-radius-pill);
+  content: "";
+  background: var(--mc-text-dim);
+}
+.shell .integration-list-row.tone-ready::before { background: var(--mc-ok); }
+.shell .integration-list-row.tone-waiting::before,
+.shell .integration-list-row.tone-error::before { background: var(--mc-warning); }
+.shell .integration-list-copy { display: grid; gap: 2px; min-width: 0; }
+.shell .integration-list-copy strong { font-size: 13px; font-weight: 620; }
+.shell .integration-list-copy small { color: var(--mc-text-dim); font-size: 11px; }
+.shell .integration-role-tag {
+  padding: 3px 7px;
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-xs);
+  font: 700 9px/1 var(--mc-font-mono);
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.shell .integration-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mc-text-soft);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+.shell .integration-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--mc-text-dim); }
+.shell .integration-list-row.tone-ready .integration-status i { background: var(--mc-ok); }
+.shell .integration-list-row.tone-ready .integration-status { color: var(--mc-ok); }
+.shell .integration-list-row.tone-waiting .integration-status i,
+.shell .integration-list-row.tone-error .integration-status i { background: var(--mc-warning); }
+.shell .integration-list-row.tone-waiting .integration-status,
+.shell .integration-list-row.tone-error .integration-status { color: var(--mc-warning); }
+.shell .integration-inspect {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+.shell .integration-inspect:hover { background: var(--mc-surface-4); border-color: var(--mc-accent-line); }
+
+@media (max-width: 720px) {
+  .shell .integration-stat-row { grid-template-columns: 1fr; }
+  .shell .integration-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+  .shell .integration-role-tag { grid-column: 2; justify-self: end; }
+  .shell .integration-status { grid-column: 1 / -1; }
+  .shell .integration-inspect { grid-column: 1 / -1; }
+}
+.shell .integration-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px !important;
+  text-align: left;
+}
+.shell .integration-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+}
+.shell .integration-health span.is-ready { background: var(--mc-ok); }
+.shell .integration-boundary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 14px;
+  color: var(--mc-text-dim);
+  border-top: 1px solid var(--mc-border);
+  font-size: var(--ui-meta);
+}
+
+/* ========================================== Groundstation + Needs hierarchy
+
+   `#root#root` so these beat the legacy `reference-final` / `prototype2026`
+   rules. The surface is one operational scene: a sticky status bar answers
+   "how is the project", the attention inbox answers "what needs me", and a
+   single manifest answers "what is running" — no KPI wall, no card stack.
+
+   The finish is instrument-panel, not dashboard: near-black canvas, panels
+   raised by a cast shadow plus a 1px top light-edge, hairline separators
+   inside a surface and a firmer border at its outer edge, tabular numerals
+   everywhere a number can change, and colour spent only where it carries
+   an operational meaning. */
+
+/* `theme-concept.css` centres and pads this container with !important; the
+   redesign keeps that measure but drops the top pad so the status bar can
+   sit flush against the scroll container it sticks to. */
+#root#root .shell .mc-ref-groundstation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--mc-canvas) !important;
+  padding: 0 26px 34px !important;
+}
+#root#root .shell .mc-ref-groundstation :where(button, [role="row"], input) {
+  transition:
+    background-color var(--mc-motion-fast),
+    border-color var(--mc-motion-fast),
+    color var(--mc-motion-fast),
+    box-shadow var(--mc-motion-fast);
+}
+#root#root .shell .mc-ref-groundstation :where(button, [role="row"], input, [tabindex]):focus-visible {
+  outline: 0;
+  box-shadow: var(--mc-focus-ring);
+}
+
+/* ---------------------------------------------------------- status bar */
+
+#root#root .shell .mc-gs-statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 22px;
+  min-height: 60px;
+  margin: 0 -26px 18px;
+  padding: 10px 26px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--mc-canvas) 97%, transparent),
+    color-mix(in srgb, var(--mc-canvas) 86%, transparent));
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--mc-hairline);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .5);
+}
+/* A short scrim below the bar so rows dissolve under it instead of being
+   sliced by a hard edge as they scroll away. */
+#root#root .shell .mc-gs-statusbar::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--mc-canvas) 80%, transparent), transparent);
+  pointer-events: none;
+}
+
+#root#root .shell .mc-gs-identity { display: flex; align-items: center; gap: 13px; min-width: 0; }
+#root#root .shell .mc-gs-identity > div { min-width: 0; }
+#root#root .shell .mc-gs-identity strong {
+  display: block; overflow: hidden;
+  font-size: 14.5px; font-weight: 600; line-height: 1.25; letter-spacing: -.012em;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-identity span {
+  display: block; overflow: hidden;
+  margin-top: 1px;
+  color: var(--mc-text-muted); font-size: 11.5px; line-height: 1.35;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The health light: a lit core inside a soft halo, not a flat dot. */
+#root#root .shell .mc-gs-health {
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--mc-ok) 16%, transparent), transparent 68%);
+  border-radius: 50%;
+}
+#root#root .shell .mc-gs-health i {
+  width: 8px; height: 8px;
+  background: var(--mc-ok);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-ok) 16%, transparent), 0 0 12px -1px var(--mc-ok);
+}
+#root#root .shell .mc-gs-statusbar.tone-warning .mc-gs-health { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--mc-warning) 16%, transparent), transparent 68%); }
+#root#root .shell .mc-gs-statusbar.tone-warning .mc-gs-health i { background: var(--mc-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-warning) 16%, transparent), 0 0 12px -1px var(--mc-warning); }
+#root#root .shell .mc-gs-statusbar.tone-danger .mc-gs-health,
+#root#root .shell .mc-gs-statusbar.tone-degraded .mc-gs-health { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--mc-danger) 18%, transparent), transparent 68%); }
+#root#root .shell .mc-gs-statusbar.tone-danger .mc-gs-health i,
+#root#root .shell .mc-gs-statusbar.tone-degraded .mc-gs-health i { background: var(--mc-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-danger) 18%, transparent), 0 0 12px -1px var(--mc-danger); }
+#root#root .shell .mc-gs-statusbar.tone-neutral .mc-gs-health { background: none; }
+#root#root .shell .mc-gs-statusbar.tone-neutral .mc-gs-health i { background: var(--mc-text-dim); box-shadow: none; }
+
+/* Counts read as one instrument cluster: a single inset well, hairline
+   dividers between readings, no button chrome until you point at one. */
+#root#root .shell .mc-gs-counts {
+  display: flex;
+  align-items: stretch;
+  padding: 3px;
+  background: color-mix(in srgb, var(--mc-void) 55%, transparent);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-counts button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 66px;
+  padding: 5px 12px;
+  color: var(--mc-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--mc-radius-xs);
+  text-align: left;
+  cursor: pointer;
+}
+#root#root .shell .mc-gs-counts button + button::before {
+  content: "";
+  position: absolute;
+  inset: 5px auto 5px 0;
+  width: 1px;
+  background: var(--mc-hairline);
+}
+#root#root .shell .mc-gs-counts button:hover { color: var(--mc-text); background: color-mix(in srgb, var(--mc-text) 5%, transparent); }
+#root#root .shell .mc-gs-counts button.is-active {
+  color: var(--mc-text);
+  background: var(--mc-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--mc-accent-line);
+}
+#root#root .shell .mc-gs-counts button.is-active + button::before,
+#root#root .shell .mc-gs-counts button:hover + button::before { opacity: 0; }
+#root#root .shell .mc-gs-counts b {
+  color: var(--mc-text);
+  font-size: 16px; font-weight: 600; line-height: 1.05;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+#root#root .shell .mc-gs-counts b small { color: var(--mc-text-dim); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+#root#root .shell .mc-gs-counts span { font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+#root#root .shell .mc-gs-counts .mc-gs-needs.has-attention b { color: var(--mc-warning); }
+#root#root .shell .mc-gs-counts .mc-gs-needs.has-attention span { color: color-mix(in srgb, var(--mc-warning) 70%, var(--mc-text-muted)); }
+
+#root#root .shell .mc-gs-statusbar-actions { display: flex; align-items: center; gap: 8px; }
+#root#root .shell .mc-gs-statusbar-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 13px;
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer;
+}
+#root#root .shell .mc-gs-statusbar-actions button:hover { color: var(--mc-text); background: var(--mc-surface-3); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-gs-statusbar-actions .ai {
+  color: var(--mc-ai-strong);
+  border-color: color-mix(in srgb, var(--mc-ai) 34%, var(--mc-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--mc-ai) 13%, var(--mc-surface-2)), var(--mc-surface-2));
+}
+#root#root .shell .mc-gs-statusbar-actions .ai:hover { border-color: color-mix(in srgb, var(--mc-ai) 55%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--mc-ai) 20%, var(--mc-surface-2)), var(--mc-surface-2)); }
+#root#root .shell .mc-gs-statusbar-actions .ai span {
+  padding: 2px 5px;
+  color: var(--mc-ai-strong);
+  background: color-mix(in srgb, var(--mc-ai) 20%, transparent);
+  border-radius: var(--mc-radius-xs);
+  font-size: 9px; font-weight: 700; letter-spacing: .07em;
+}
+
+/* -------------------------------------------------- body + inspector rail */
+
+#root#root .shell .mc-gs-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+#root#root .shell .mc-gs-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+#root#root .shell .mc-gs-muted { color: var(--mc-text-muted); font-size: 12px; }
+#root#root .shell .mc-gs-kicker { color: var(--mc-text-dim); font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+
+@media (min-width: 1180px) {
+  #root#root .shell .mc-ref-groundstation.has-inspector .mc-gs-body { grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); }
+}
+
+/* ------------------------------------------------------ attention inbox */
+
+#root#root .shell .mc-gs-attention {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 17px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--mc-warning) 7%, transparent), transparent 62%),
+    var(--mc-surface);
+  border: 1px solid color-mix(in srgb, var(--mc-warning) 26%, var(--mc-border));
+  border-radius: var(--mc-radius-md);
+  box-shadow: var(--mc-raise-2);
+}
+#root#root .shell .mc-gs-attention > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+#root#root .shell .mc-gs-attention > header .mc-gs-kicker { color: var(--mc-warning); }
+#root#root .shell .mc-gs-attention > header strong { display: block; margin-top: 3px; font-size: 14px; font-weight: 600; letter-spacing: -.012em; }
+#root#root .shell .mc-gs-attention > header > button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 28px; padding: 0 11px;
+  color: var(--mc-text-soft); background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 11.5px; cursor: pointer;
+}
+#root#root .shell .mc-gs-attention > header > button:hover { color: var(--mc-text); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-gs-attention > div { display: flex; flex-direction: column; gap: 7px; }
+#root#root .shell .mc-gs-decision {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 14px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+}
+#root#root .shell .mc-gs-decision > i {
+  width: 7px; height: 7px;
+  background: var(--mc-warning);
+  border-radius: 50%;
+  box-shadow: 0 0 10px -1px var(--mc-warning);
+}
+#root#root .shell .mc-gs-decision.is-critical {
+  border-color: color-mix(in srgb, var(--mc-danger) 30%, var(--mc-border));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mc-danger) 9%, var(--mc-surface-2)), var(--mc-surface-2) 220px);
+}
+#root#root .shell .mc-gs-decision.is-critical > i { background: var(--mc-danger); box-shadow: 0 0 10px -1px var(--mc-danger); }
+#root#root .shell .mc-gs-decision-body { min-width: 0; }
+#root#root .shell .mc-gs-decision-body small { display: block; color: var(--mc-text-dim); font-size: 10px; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+#root#root .shell .mc-gs-decision-body strong {
+  display: block; overflow: hidden;
+  margin: 3px 0 4px;
+  font-size: 13px; font-weight: 600; letter-spacing: -.01em;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-decision-body p { margin: 0; color: var(--mc-text-muted); font-size: 11.5px; line-height: 1.45; }
+#root#root .shell .mc-gs-decision-actions { display: flex; gap: 7px; }
+#root#root .shell .mc-gs-decision-actions button {
+  min-height: 29px; padding: 0 12px;
+  color: var(--mc-text-soft); background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+#root#root .shell .mc-gs-decision-actions button:hover { color: var(--mc-text); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-gs-decision-actions .primary {
+  color: var(--mc-accent-ink);
+  background: linear-gradient(180deg, var(--mc-accent-strong), var(--mc-accent));
+  border-color: color-mix(in srgb, var(--mc-accent) 70%, black);
+  font-weight: 600;
+}
+#root#root .shell .mc-gs-decision-actions .primary:hover { background: linear-gradient(180deg, var(--mc-accent-strong), var(--mc-accent-strong)); border-color: var(--mc-accent-strong); }
+#root#root .shell .mc-gs-attention > footer button {
+  padding: 3px 0;
+  color: var(--mc-text-muted); background: transparent; border: 0;
+  font-size: 11.5px; cursor: pointer;
+}
+#root#root .shell .mc-gs-attention > footer button:hover { color: var(--mc-text); }
+
+/* ------------------------------------------------- manifest + toolbar */
+
+#root#root .shell .mc-gs-register {
+  position: relative;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 15px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mc-surface-2) 42%, transparent), transparent 82px),
+    var(--mc-surface);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: calc(var(--mc-radius-md) + 2px);
+  box-shadow: var(--mc-raise-2);
+}
+/* A short colour key identifies the two registers without turning either
+   section into a glowing card or adding another full outline. */
+#root#root .shell .mc-gs-register::before {
+  position: absolute;
+  inset: -1px auto auto 15px;
+  width: 42px;
+  height: 2px;
+  background: var(--mc-accent);
+  border-radius: 0 0 2px 2px;
+  content: "";
+}
+#root#root .shell .mc-gs-register--crew::before { background: var(--mc-ai); }
+
+#root#root .shell .mc-ref-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 11px !important; }
+#root#root .shell .mc-gs-register .mc-ref-section-head { min-height: 22px; margin-bottom: 10px !important; padding: 0 2px; }
+#root#root .shell .mc-ref-section-head h2 { font-size: 13.5px !important; font-weight: 600 !important; letter-spacing: -.015em !important; }
+#root#root .shell .mc-ref-section-head span { font-size: 11px !important; color: var(--mc-text-muted) !important; font-variant-numeric: tabular-nums; }
+#root#root .shell .mc-gs-register--crew .mc-ref-section-head h2 { color: color-mix(in srgb, var(--mc-ai-strong) 76%, var(--mc-text)); }
+
+#root#root .shell .mc-gs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#root#root .shell .mc-gs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--mc-void) 55%, transparent);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-chips button {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 26px; padding: 0 11px;
+  color: var(--mc-text-muted); background: transparent;
+  border: 0; border-radius: var(--mc-radius-xs);
+  font-size: 11.5px; font-weight: 500; cursor: pointer;
+}
+#root#root .shell .mc-gs-chips button:hover { color: var(--mc-text); background: color-mix(in srgb, var(--mc-text) 5%, transparent); }
+#root#root .shell .mc-gs-chips button b {
+  color: var(--mc-text-dim);
+  font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#root#root .shell .mc-gs-chips button.is-active {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  box-shadow: var(--mc-raise-1);
+}
+#root#root .shell .mc-gs-chips button.is-active b { color: var(--mc-accent); }
+#root#root .shell .mc-gs-chips .chip-failed.is-active b { color: var(--mc-danger); }
+#root#root .shell .mc-gs-chips .chip-review.is-active b { color: var(--mc-warning); }
+
+#root#root .shell .mc-gs-search {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-width: 224px; max-width: 340px;
+  padding: 0 11px;
+  background: color-mix(in srgb, var(--mc-void) 55%, transparent);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-search:focus-within { border-color: var(--mc-accent-line); box-shadow: 0 0 0 3px var(--mc-accent-soft); }
+#root#root .shell .mc-gs-search .icon { color: var(--mc-text-dim); flex: 0 0 auto; }
+#root#root .shell .mc-gs-search input {
+  min-height: 30px; width: 100%;
+  color: var(--mc-text); background: transparent; border: 0; outline: 0;
+  font-size: 12px;
+}
+#root#root .shell .mc-gs-search input::placeholder { color: var(--mc-text-dim); }
+#root#root .shell .mc-gs-search input::-webkit-search-cancel-button { display: none; }
+#root#root .shell .mc-gs-search > button {
+  color: var(--mc-text-dim); background: transparent; border: 0;
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+#root#root .shell .mc-gs-search > button:hover { color: var(--mc-text); }
+
+/* One raised table rather than a stack of bordered cards: the eye follows a
+   single left edge down the manifest instead of re-reading a box per row. */
+#root#root .shell .mc-ref-manifest {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mc-void) 30%, var(--mc-surface)) !important;
+  border: 1px solid var(--mc-hairline) !important;
+  border-radius: var(--mc-radius-sm) !important;
+  box-shadow: var(--mc-raise-2) !important;
+}
+#root#root .shell .mc-ref-manifest-row {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 3px 22px minmax(0, 1.8fr) minmax(0, 104px) 84px minmax(0, 1.25fr) 92px auto !important;
+  align-items: center !important;
+  gap: 12px !important;
+  min-height: 46px !important;
+  padding: 9px 14px !important;
+  content-visibility: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mc-hairline) !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+}
+#root#root .shell .mc-ref-manifest-row:last-child { border-bottom: 0 !important; }
+#root#root .shell .mc-ref-manifest-row:hover { background: color-mix(in srgb, var(--mc-text) 4%, transparent) !important; }
+#root#root .shell .mc-ref-manifest-row.is-selected {
+  background: var(--mc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--mc-accent-line);
+}
+
+/* The state bar is the row's status light: a lit capsule, dimmed while the
+   worker is idle so a quiet manifest stays quiet. */
+#root#root .shell .mc-ref-manifest-row .mc-ref-state-bar {
+  align-self: center;
+  width: 3px; height: 22px;
+  border-radius: var(--mc-radius-pill);
+  background: var(--mc-text-dim);
+  opacity: .5;
+}
+#root#root .shell .mc-ref-manifest-row.state-ok .mc-ref-state-bar { background: var(--mc-accent); opacity: 1; box-shadow: 0 0 10px -2px var(--mc-accent); }
+#root#root .shell .mc-ref-manifest-row.state-warn .mc-ref-state-bar { background: var(--mc-warning); opacity: 1; box-shadow: 0 0 10px -2px var(--mc-warning); }
+#root#root .shell .mc-ref-manifest-row.state-crit .mc-ref-state-bar { background: var(--mc-danger); opacity: 1; box-shadow: 0 0 10px -2px var(--mc-danger); }
+
+#root#root .shell .mc-gs-star {
+  display: grid; place-items: center;
+  width: 22px; height: 22px;
+  color: var(--mc-text-dim); background: transparent;
+  border: 0; border-radius: var(--mc-radius-xs);
+  opacity: .45;
+  cursor: pointer;
+}
+#root#root .shell .mc-ref-manifest-row:hover .mc-gs-star,
+#root#root .shell .mc-ref-manifest-row.is-selected .mc-gs-star { opacity: 1; }
+#root#root .shell .mc-gs-star:hover { color: var(--mc-text-soft); background: color-mix(in srgb, var(--mc-text) 8%, transparent); }
+#root#root .shell .mc-gs-star.is-on { color: var(--mc-warning); opacity: 1; }
+#root#root .shell .mc-gs-star.is-on .icon { fill: currentColor; }
+
+#root#root .shell .mc-ref-manifest-row .mc-ref-worker-name { min-width: 0; }
+#root#root .shell .mc-gs-name-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
+#root#root .shell .mc-gs-name-line strong {
+  overflow: hidden;
+  font-size: 13px; font-weight: 600; letter-spacing: -.012em;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-evidence {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  color: var(--mc-text-muted);
+  background: color-mix(in srgb, var(--mc-void) 45%, transparent);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-pill);
+  font-family: var(--mc-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root#root .shell .mc-gs-evidence.tone-ok { color: var(--mc-ok); border-color: color-mix(in srgb, var(--mc-ok) 26%, transparent); background: var(--mc-ok-soft); }
+#root#root .shell .mc-gs-evidence.tone-warn { color: var(--mc-warning); border-color: color-mix(in srgb, var(--mc-warning) 28%, transparent); background: var(--mc-warning-soft); }
+#root#root .shell .mc-gs-evidence.tone-crit { color: var(--mc-danger); border-color: color-mix(in srgb, var(--mc-danger) 30%, transparent); background: var(--mc-danger-soft); }
+#root#root .shell .mc-ref-manifest-row .mc-ref-worker-name code {
+  display: block; overflow: hidden;
+  margin-top: 2px;
+  color: var(--mc-text-dim); font-size: 10.5px; letter-spacing: -.005em;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-ref-manifest-row .mc-ref-role,
+#root#root .shell .mc-ref-manifest-row .mc-gs-activity,
+#root#root .shell .mc-ref-manifest-row .mc-ref-resource {
+  overflow: hidden;
+  color: var(--mc-text-muted); font-size: 11px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-ref-manifest-row .mc-ref-role { font-size: 10.5px; letter-spacing: .01em; }
+#root#root .shell .mc-ref-manifest-row .mc-ref-resource { text-align: right; font-variant-numeric: tabular-nums; color: var(--mc-text-dim); }
+#root#root .shell .mc-ref-manifest-row .mc-ref-status { font-size: 11px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; }
+#root#root .shell .mc-ref-manifest-row .mc-ref-status.ok { color: var(--mc-accent); }
+#root#root .shell .mc-ref-manifest-row .mc-ref-status.warn { color: var(--mc-warning); }
+#root#root .shell .mc-ref-manifest-row .mc-ref-status.crit { color: var(--mc-danger); }
+#root#root .shell .mc-ref-manifest-row .mc-ref-status.idle { color: var(--mc-text-dim); }
+
+/* The row action stays present for the keyboard and for screen readers, but
+   it only takes visual weight once the row is pointed at or selected. */
+#root#root .shell .mc-ref-manifest-row .mc-gs-row-action {
+  min-height: 27px; padding: 0 12px;
+  color: var(--mc-text-muted); background: transparent;
+  border: 1px solid var(--mc-hairline); border-radius: var(--mc-radius-sm);
+  font-size: 11px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+#root#root .shell .mc-ref-manifest-row:hover .mc-gs-row-action,
+#root#root .shell .mc-ref-manifest-row.is-selected .mc-gs-row-action,
+#root#root .shell .mc-ref-manifest-row .mc-gs-row-action:focus-visible {
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border);
+  box-shadow: var(--mc-raise-1);
+}
+#root#root .shell .mc-ref-manifest-row .mc-gs-row-action:hover { color: var(--mc-text); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-ref-manifest-row.state-crit .mc-gs-row-action { color: color-mix(in srgb, var(--mc-danger) 80%, var(--mc-text-muted)); border-color: color-mix(in srgb, var(--mc-danger) 26%, transparent); }
+#root#root .shell .mc-ref-manifest-row.state-crit:hover .mc-gs-row-action { color: var(--mc-danger); border-color: color-mix(in srgb, var(--mc-danger) 42%, transparent); }
+
+#root#root .shell .mc-ref-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 34px 20px;
+  background: var(--mc-surface);
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  text-align: center;
+}
+#root#root .shell .mc-ref-empty strong { font-size: 13.5px; font-weight: 600; letter-spacing: -.012em; }
+#root#root .shell .mc-ref-empty span { color: var(--mc-text-muted); font-size: 12px; }
+#root#root .shell .mc-ref-empty button {
+  margin-top: 5px; min-height: 30px; padding: 0 14px;
+  color: var(--mc-text-soft); background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 12px; cursor: pointer;
+}
+
+/* --------------------------------------------------------- lower panels */
+
+#root#root .shell .mc-ref-lower-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(276px, 1fr)); gap: 14px; align-items: start; }
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel {
+  display: flex; flex-direction: column; gap: 11px;
+  min-width: 0;
+  padding: 15px 16px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  box-shadow: var(--mc-raise-2);
+}
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel h3 { color: var(--mc-text-dim); font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel > header button {
+  padding: 4px 9px;
+  color: var(--mc-text-muted); background: transparent;
+  border: 1px solid var(--mc-hairline); border-radius: var(--mc-radius-xs);
+  font-size: 11px; cursor: pointer;
+}
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel > header button:hover { color: var(--mc-text); border-color: var(--mc-border); background: var(--mc-surface-2); }
+
+#root#root .shell .mc-gs-feed { display: flex; flex-direction: column; gap: 1px; max-height: 214px; overflow-y: auto; margin: 0 -6px; }
+#root#root .shell .mc-gs-feed button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 9px;
+  padding: 6px;
+  background: transparent; border: 0; border-radius: var(--mc-radius-xs);
+  text-align: left; cursor: pointer;
+}
+#root#root .shell .mc-gs-feed button:hover { background: color-mix(in srgb, var(--mc-text) 5%, transparent); }
+#root#root .shell .mc-gs-feed time { color: var(--mc-text-dim); font-size: 10px; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+#root#root .shell .mc-gs-feed strong { overflow: hidden; color: var(--mc-text); font-size: 11.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+#root#root .shell .mc-gs-feed span { overflow: hidden; color: var(--mc-text-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+#root#root .shell .mc-gs-feed .tone-crit strong { color: var(--mc-danger); }
+#root#root .shell .mc-gs-feed .tone-warn strong { color: var(--mc-warning); }
+#root#root .shell .mc-gs-feed p { padding: 0 6px; color: var(--mc-text-muted); font-size: 11.5px; }
+
+#root#root .shell .mc-ref-recipes .mc-ref-recipe-list { display: flex; flex-direction: column; gap: 6px; }
+#root#root .shell .mc-gs-recipe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "head action" "chain action";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 10px 12px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-recipe.tone-crit { border-color: color-mix(in srgb, var(--mc-danger) 26%, var(--mc-border)); }
+#root#root .shell .mc-gs-recipe.tone-ok { border-color: color-mix(in srgb, var(--mc-accent) 26%, var(--mc-border)); }
+#root#root .shell .mc-gs-recipe-head { grid-area: head; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+#root#root .shell .mc-gs-recipe-head strong {
+  overflow: hidden;
+  font-size: 12.5px; font-weight: 600; letter-spacing: -.01em;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-recipe-state {
+  flex: 0 0 auto;
+  color: var(--mc-text-dim);
+  font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root#root .shell .mc-gs-recipe-state.tone-ok { color: var(--mc-accent); }
+#root#root .shell .mc-gs-recipe-state.tone-warn { color: var(--mc-warning); }
+#root#root .shell .mc-gs-recipe-state.tone-crit { color: var(--mc-danger); }
+#root#root .shell .mc-gs-recipe-chain {
+  grid-area: chain;
+  overflow: hidden;
+  color: var(--mc-text-muted); font-size: 11px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-recipe-run {
+  grid-area: action;
+  min-height: 28px; padding: 0 12px;
+  color: var(--mc-text-soft); background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 11px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+#root#root .shell .mc-gs-recipe-run:hover:not(:disabled) { color: var(--mc-text); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-gs-recipe-run:disabled { opacity: .45; box-shadow: none; cursor: default; }
+#root#root .shell .mc-gs-recipe.tone-crit .mc-gs-recipe-run:not(:disabled) {
+  color: var(--mc-danger);
+  border-color: color-mix(in srgb, var(--mc-danger) 36%, transparent);
+  background: var(--mc-danger-soft);
+}
+
+#root#root .shell .mc-gs-recipe-note {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  padding: 12px;
+  color: var(--mc-text-muted);
+  background: color-mix(in srgb, var(--mc-void) 40%, transparent);
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+}
+#root#root .shell .mc-gs-recipe-note.is-error { border-style: solid; border-color: color-mix(in srgb, var(--mc-danger) 30%, var(--mc-border)); }
+#root#root .shell .mc-gs-recipe-note strong { color: var(--mc-text); font-size: 12.5px; font-weight: 600; }
+#root#root .shell .mc-gs-recipe-note.is-error strong { color: var(--mc-danger); }
+#root#root .shell .mc-gs-recipe-note span { line-height: 1.45; }
+#root#root .shell .mc-gs-recipe-note button {
+  margin-top: 3px; min-height: 27px; padding: 0 11px;
+  color: var(--mc-text-soft); background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 11px; cursor: pointer;
+}
+#root#root .shell .mc-gs-recipe-more { display: flex; }
+#root#root .shell .mc-gs-recipe-more button {
+  padding: 3px 0;
+  color: var(--mc-text-muted); background: transparent; border: 0;
+  font-size: 11px; cursor: pointer;
+}
+#root#root .shell .mc-gs-recipe-more button:hover { color: var(--mc-text); }
+
+#root#root .shell .mc-ref-graph > div { display: flex; flex-wrap: wrap; gap: 6px; }
+#root#root .shell .mc-ref-graph > div button {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 11px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-pill);
+  cursor: pointer;
+}
+#root#root .shell .mc-ref-graph > div button:hover { border-color: var(--mc-border-strong); background: var(--mc-surface-3); }
+#root#root .shell .mc-ref-graph > div button i { width: 6px; height: 6px; border-radius: 50%; background: var(--mc-text-dim); }
+#root#root .shell .mc-ref-graph > div button i.ok { background: var(--mc-accent); box-shadow: 0 0 8px -1px var(--mc-accent); }
+#root#root .shell .mc-ref-graph > div button i.warn { background: var(--mc-warning); box-shadow: 0 0 8px -1px var(--mc-warning); }
+#root#root .shell .mc-ref-graph > div button i.crit { background: var(--mc-danger); box-shadow: 0 0 8px -1px var(--mc-danger); }
+#root#root .shell .mc-ref-graph > div button code { color: var(--mc-text-soft); font-size: 11px; }
+
+/* ------------------------------------------------------ worker inspector */
+
+#root#root .shell .mc-gs-inspector {
+  position: sticky;
+  top: calc(var(--mc-gs-toolbar-clearance, 78px) + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 42px - var(--mc-gs-toolbar-clearance, 78px) - 20px);
+  padding: 16px 17px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mc-surface-2) 45%, transparent), transparent 112px),
+    var(--mc-surface);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: calc(var(--mc-radius-md) + 2px);
+  box-shadow: var(--mc-raise-2);
+}
+#root#root .shell .mc-gs-inspector.state-crit { border-color: color-mix(in srgb, var(--mc-danger) 30%, var(--mc-border)); }
+#root#root .shell .mc-gs-inspector.state-warn { border-color: color-mix(in srgb, var(--mc-warning) 28%, var(--mc-border)); }
+#root#root .shell .mc-gs-inspector > header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  margin: -2px -1px 0;
+  padding: 0 1px 13px;
+  border-bottom: 1px solid var(--mc-hairline);
+}
+#root#root .shell .mc-gs-inspector h2 { margin: 4px 0 5px; font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+#root#root .shell .mc-gs-inspector > header code {
+  display: block; overflow: hidden;
+  color: var(--mc-text-dim); font-size: 11px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-inspector-close {
+  flex: 0 0 auto;
+  width: 25px; height: 25px;
+  color: var(--mc-text-muted); background: transparent;
+  border: 1px solid var(--mc-hairline); border-radius: var(--mc-radius-xs);
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+#root#root .shell .mc-gs-inspector-close:hover { color: var(--mc-text); border-color: var(--mc-border); background: var(--mc-surface-2); }
+#root#root .shell .mc-gs-inspector-now {
+  padding: 11px 12px;
+  background: color-mix(in srgb, var(--mc-void) 45%, transparent);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-inspector-now span { display: block; margin-bottom: 4px; color: var(--mc-text-dim); font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+#root#root .shell .mc-gs-inspector-now p { margin: 0; color: var(--mc-text-soft); font-size: 12px; line-height: 1.5; }
+#root#root .shell .mc-gs-inspector-evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#root#root .shell .mc-gs-inspector-evidence small { color: var(--mc-text-dim); font-size: 9px; font-weight: 600; letter-spacing: .1em; }
+#root#root .shell .mc-gs-inspector-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--mc-hairline);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .mc-gs-inspector-facts > div { padding: 9px 11px; background: var(--mc-surface); }
+#root#root .shell .mc-gs-inspector-facts dt { color: var(--mc-text-dim); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+#root#root .shell .mc-gs-inspector-facts dd {
+  margin: 3px 0 0; overflow: hidden;
+  color: var(--mc-text-soft); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+#root#root .shell .mc-gs-inspector-events { display: flex; flex-direction: column; gap: 6px; }
+#root#root .shell .mc-gs-inspector-events article { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 9px; align-items: baseline; }
+#root#root .shell .mc-gs-inspector-events time { color: var(--mc-text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+#root#root .shell .mc-gs-inspector-events span { overflow: hidden; color: var(--mc-text-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+#root#root .shell .mc-gs-inspector-events p { margin: 0; color: var(--mc-text-dim); font-size: 11.5px; }
+#root#root .shell .mc-gs-inspector > footer { display: flex; gap: 7px; margin-top: auto; padding-top: 6px; }
+#root#root .shell .mc-gs-inspector > footer button {
+  flex: 1 1 auto;
+  min-height: 32px; padding: 0 11px;
+  color: var(--mc-text-soft); background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border); border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-raise-1);
+  font-size: 11.5px; font-weight: 500; cursor: pointer;
+}
+#root#root .shell .mc-gs-inspector > footer button:hover { color: var(--mc-text); border-color: var(--mc-border-strong); }
+#root#root .shell .mc-gs-inspector > footer .mc-gs-star { flex: 0 0 auto; width: 32px; opacity: 1; }
+#root#root .shell .mc-gs-inspector > footer .primary {
+  color: var(--mc-accent-ink);
+  background: linear-gradient(180deg, var(--mc-accent-strong), var(--mc-accent));
+  border-color: color-mix(in srgb, var(--mc-accent) 70%, black);
+  font-weight: 600;
+}
+#root#root .shell .mc-gs-inspector > footer .primary:hover { background: linear-gradient(180deg, var(--mc-accent-strong), var(--mc-accent-strong)); border-color: var(--mc-accent-strong); }
+
+/* ---------------------------------------------------------- narrow scale */
+
+@media (max-width: 900px) {
+  #root#root .shell .mc-ref-groundstation { padding: 0 16px 26px !important; }
+  #root#root .shell .mc-gs-statusbar { grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0 -16px 16px; padding: 12px 16px; }
+  #root#root .shell .mc-gs-counts { flex-wrap: wrap; }
+  #root#root .shell .mc-ref-manifest-row {
+    grid-template-columns: 3px 22px minmax(0, 1fr) auto !important;
+    grid-template-areas: "bar star name action" ". . activity activity" !important;
+    row-gap: 5px !important;
+  }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-state-bar { grid-area: bar; }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-star { grid-area: star; opacity: 1; }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-worker-name { grid-area: name; }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-row-action { grid-area: action; color: var(--mc-text-soft); background: var(--mc-surface-3); border-color: var(--mc-border); }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-activity { grid-area: activity; }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-role,
+  #root#root .shell .mc-ref-manifest-row .mc-ref-status,
+  #root#root .shell .mc-ref-manifest-row .mc-ref-resource { display: none; }
+  #root#root .shell .mc-gs-decision { grid-template-columns: 7px minmax(0, 1fr); }
+  #root#root .shell .mc-gs-decision-actions { grid-column: 2; }
+  #root#root .shell .mc-gs-inspector-facts { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root#root .shell .mc-ref-groundstation :where(button, [role="row"], input) { transition: none; }
+}
+
+/* ========================================================================
+   2.19 Groundstation contract — dense register, explicit recipe entry point,
+   asymmetric supporting panels, and an inspector that cannot widen the page.
+   ===================================================================== */
+
+#root#root .shell .mc-ref-groundstation {
+  container: groundstation / inline-size;
+  width: 100% !important;
+  max-width: 1360px !important;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+#root#root .shell .mc-gs-statusbar-actions .primary {
+  color: var(--mc-text-ink);
+  background: var(--mc-accent);
+  border-color: transparent;
+  box-shadow: none;
+  font-weight: 680;
+}
+#root#root .shell .mc-gs-statusbar-actions .primary:hover {
+  color: var(--mc-text-ink);
+  background: var(--mc-accent-strong);
+  border-color: transparent;
+}
+
+#root#root .shell .mc-ref-manifest-header {
+  display: grid;
+  grid-template-columns: 3px 22px minmax(0, 1.8fr) minmax(0, 104px) 84px minmax(0, 1.25fr) 92px auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  padding: 0 14px;
+  color: var(--mc-text-dim);
+  background: color-mix(in srgb, var(--mc-surface-2) 72%, transparent);
+  border-bottom: 1px solid var(--mc-hairline);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+#root#root .shell .mc-ref-manifest-header span:nth-last-child(2),
+#root#root .shell .mc-ref-manifest-header span:last-child { text-align: right; }
+
+#root#root .shell .mc-ref-lower-grid {
+  grid-template-columns: minmax(0, 1.8fr) minmax(250px, 1.15fr) minmax(220px, .9fr);
+}
+
+/* The drawer is the safe default: opening details never changes the manifest
+   width or creates a hidden horizontal page. Its inset includes the 42px app
+   tape plus the responsive Groundstation toolbar, so it never covers the Run
+   recipe, Workspace or Ask Mission AI actions. Wide canvases opt into a rail. */
+#root#root .shell .mc-gs-inspector {
+  position: fixed;
+  inset: calc(42px + var(--mc-gs-toolbar-clearance, 78px) + 10px) 12px 12px auto;
+  z-index: 5;
+  width: min(360px, calc(100vw - 28px));
+  max-height: none;
+  border-color: var(--mc-border-strong);
+  border-radius: var(--mc-radius-md);
+  box-shadow: var(--mc-shadow-float);
+}
+
+@container groundstation (min-width: 1300px) {
+  #root#root .shell .mc-ref-groundstation.has-inspector .mc-gs-body {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    --mc-gs-toolbar-clearance: 78px;
+  }
+  #root#root .shell .mc-gs-inspector {
+    position: sticky;
+    inset: auto;
+    top: calc(var(--mc-gs-toolbar-clearance) + 8px);
+    z-index: auto;
+    width: auto;
+    max-height: calc(100dvh - 42px - var(--mc-gs-toolbar-clearance) - 20px);
+    box-shadow: var(--mc-raise-2);
+  }
+}
+
+@container groundstation (max-width: 1160px) {
+  #root#root .shell .mc-gs-body { --mc-gs-toolbar-clearance: 124px; }
+  #root#root .shell .mc-gs-statusbar {
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 10px 16px;
+  }
+  #root#root .shell .mc-gs-statusbar-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  #root#root .shell .mc-ref-lower-grid { grid-template-columns: minmax(0, 1.5fr) minmax(250px, 1fr); }
+  #root#root .shell .mc-ref-lower-grid .mc-ref-graph { grid-column: 1 / -1; }
+}
+
+@container groundstation (max-width: 820px) {
+  #root#root .shell .mc-gs-body { --mc-gs-toolbar-clearance: 172px; }
+  #root#root .shell .mc-gs-statusbar { grid-template-columns: minmax(0, 1fr); }
+  #root#root .shell .mc-gs-counts { flex-wrap: wrap; }
+  #root#root .shell .mc-gs-statusbar-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }
+  #root#root .shell .mc-ref-manifest-header { display: none; }
+  #root#root .shell .mc-ref-manifest-row {
+    grid-template-columns: 3px 22px minmax(0, 1fr) auto !important;
+    grid-template-areas: "bar star name action" ". . activity activity" !important;
+    row-gap: 5px !important;
+  }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-state-bar { grid-area: bar; }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-star { grid-area: star; opacity: 1; }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-worker-name { grid-area: name; }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-row-action { grid-area: action; }
+  #root#root .shell .mc-ref-manifest-row .mc-gs-activity { grid-area: activity; }
+  #root#root .shell .mc-ref-manifest-row .mc-ref-role,
+  #root#root .shell .mc-ref-manifest-row .mc-ref-status,
+  #root#root .shell .mc-ref-manifest-row .mc-ref-resource { display: none; }
+  #root#root .shell .mc-ref-lower-grid { grid-template-columns: minmax(0, 1fr); }
+  #root#root .shell .mc-ref-lower-grid .mc-ref-graph { grid-column: auto; }
+}
+
+/* ======================================================== Needs You queue
+
+   The global status tape already carries the ambient count and the controls
+   below are the interactive count source. Keep this screen focused on the
+   decision itself, with lifecycle documentation available on demand. */
+
+#root#root .shell .needs-decision-room .needs-hero {
+  min-height: 0 !important;
+  margin-bottom: var(--mc-space-2) !important;
+  padding: var(--mc-space-4) var(--mc-space-5) !important;
+  align-items: center !important;
+}
+#root#root .shell .needs-decision-room .needs-hero > div { max-width: 720px; }
+#root#root .shell .needs-decision-room .needs-hero h2 {
+  margin: var(--mc-space-1) 0 !important;
+  font-size: clamp(20px, 2vw, 26px) !important;
+}
+#root#root .shell .needs-decision-room .needs-hero p { margin: 0; font-size: 12px !important; }
+#root#root .shell .needs-decision-room .decision-room-heading {
+  min-height: 42px;
+  padding: var(--mc-space-2) var(--mc-space-1) !important;
+}
+#root#root .shell .needs-decision-room .decision-queue-controls {
+  min-height: 44px;
+  padding-top: var(--mc-space-1) !important;
+}
+
+#root#root .shell .needs-decision-room .decision-queue-controls button.is-zero b {
+  color: var(--mc-ok) !important;
+  background: var(--mc-ok-soft) !important;
+}
+
+#root#root .shell .needs-decision-room .attention-lifecycle-bar {
+  position: relative;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  min-height: 0 !important;
+  margin: var(--mc-space-2) 0 0 auto;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > summary {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: var(--mc-space-2);
+  padding: 0 var(--mc-space-2);
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-sm);
+  font-size: 10.5px;
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--mc-motion-fast), background var(--mc-motion-fast), border-color var(--mc-motion-fast);
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > summary::-webkit-details-marker { display: none; }
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > summary:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--mc-focus-ring);
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > summary b {
+  margin-left: var(--mc-space-1);
+  padding-left: var(--mc-space-2);
+  color: var(--mc-text-dim);
+  border-left: 1px solid var(--mc-hairline);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > div {
+  position: absolute;
+  top: calc(100% + var(--mc-space-2));
+  right: 0;
+  z-index: 8;
+  display: flex;
+  width: min(360px, calc(100vw - 48px));
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--mc-space-1);
+  padding: var(--mc-space-3);
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border-strong);
+  border-radius: var(--mc-radius-sm);
+  box-shadow: var(--mc-shadow-float);
+}
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > div strong { font-size: 11px; font-weight: 600; }
+#root#root .shell .needs-decision-room .attention-lifecycle-bar > div small { color: var(--mc-text-dim); font-size: 10px; }
+
+.shell .needs-decision-room .need-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 160px;
+  gap: 14px;
+  padding: 16px !important;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-md) !important;
+}
+.shell .needs-decision-room .need-item.decision-critical {
+  border-color: color-mix(in srgb, var(--mc-danger) 34%, var(--mc-border)) !important;
+  background: color-mix(in srgb, var(--mc-danger) 5%, var(--mc-surface)) !important;
+}
+.shell .needs-decision-room .need-item.decision-attention {
+  border-color: color-mix(in srgb, var(--mc-warning) 32%, var(--mc-border)) !important;
+}
+.shell .needs-decision-room .need-item.is-terminal-alert {
+  box-shadow: inset 3px 0 var(--mc-warning) !important;
+}
+.shell .needs-decision-room .need-item.is-terminal-alert .need-meta > b:last-child {
+  color: var(--mc-warning);
+  background: var(--mc-warning-soft);
+}
+.shell .needs-decision-room .need-item.decision-critical .need-index i { background: var(--mc-danger); }
+.shell .needs-decision-room .need-item.decision-attention .need-index i { background: var(--mc-warning); }
+.shell .decision-evidence span b { color: var(--mc-text-muted); }
+
+/* ==================================================================== Agents
+
+   `AgentWorkspace` renders the "v2" markup — a full-width workforce header,
+   one roster rail and one detail pane. The grid that used to lay that out
+   lived in experience28.css, which 2.19 no longer imports, so the v2 markup
+   was falling back to uiFoundation's ORIGINAL two-column
+   `.agent-operations { grid-template-columns: 270px minmax(0,1fr) }` rule
+   meant for a `__roster` + `__detail` pair. With three children the header
+   was being crushed into the 270px column (which is why the workforce counts
+   rendered as "TOTAL2ACTIVE0NEEDS YOU0STANDING BY2" — `.agent-workforce-counts`
+   also lost its only layout rule with that file). This block is now the
+   authoritative geometry for the screen.
+   ======================================================================== */
+
+.shell .view-agents .agent-operations.agent-operations-v2 {
+  display: grid;
+  grid-template-columns: minmax(248px, 300px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mc-canvas);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+}
+
+/* ------------------------------------------------------- workforce header */
+
+.shell .view-agents .agent-workforce-overview {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-4);
+  padding: var(--mc-space-4) var(--mc-space-5);
+  background: var(--mc-surface) !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+}
+.shell .view-agents .agent-workforce-overview > div:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.shell .view-agents .agent-workforce-overview h1 {
+  margin: 5px 0 3px;
+  color: var(--mc-text);
+  font-size: 20px;
+  font-weight: 660;
+  letter-spacing: -.02em;
+}
+.shell .view-agents .agent-workforce-overview p {
+  margin: 0;
+  color: var(--mc-text-muted);
+  font-size: 12px;
+}
+
+/* Four readings in one instrument cluster, split by hairlines instead of
+   running together as a single unreadable string. */
+.shell .view-agents .agent-workforce-counts {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(70px, auto);
+  overflow: hidden;
+  background: var(--mc-canvas);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+.shell .view-agents .agent-workforce-counts > span {
+  display: grid;
+  gap: 3px;
+  place-content: center;
+  padding: 7px var(--mc-space-3);
+  text-align: center;
+  border-left: 1px solid var(--mc-hairline);
+}
+.shell .view-agents .agent-workforce-counts > span:first-child { border-left: 0; }
+.shell .view-agents .agent-workforce-counts small {
+  color: var(--mc-text-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .09em;
+}
+.shell .view-agents .agent-workforce-counts strong {
+  color: var(--mc-text);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+/* A count only earns colour when it is actually asking for something. */
+.shell .view-agents .agent-workforce-counts > span.has-risk {
+  background: var(--mc-warning-soft);
+}
+.shell .view-agents .agent-workforce-counts > span.has-risk strong { color: var(--mc-warning); }
+
+/* --------------------------------------------------------- the one roster */
+
+.shell .view-agents .agent-roster-strip {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--mc-canvas);
+  border-right: 1px solid var(--mc-border);
+}
+.shell .view-agents .agent-roster-strip > header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: var(--mc-space-3) var(--mc-space-3) var(--mc-space-2);
+  border-bottom: 1px solid var(--mc-hairline);
+}
+.shell .view-agents .agent-roster-strip > header > div { display: grid; gap: 2px; }
+.shell .view-agents .agent-roster-strip > header strong {
+  color: var(--mc-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+.shell .view-agents .agent-roster-strip > header small {
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+}
+.shell .view-agents .agent-roster-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: var(--mc-space-2);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.shell .view-agents .agent-roster-list > button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--mc-space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 9px;
+  color: var(--mc-text-soft);
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--mc-radius-sm);
+  cursor: pointer;
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast), color var(--mc-motion-fast);
+}
+.shell .view-agents .agent-roster-list > button:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-2);
+}
+.shell .view-agents .agent-roster-list > button.is-selected {
+  color: var(--mc-text);
+  background: var(--mc-ai-soft);
+  border-color: color-mix(in srgb, var(--mc-ai) 38%, transparent);
+}
+.shell .view-agents .agent-roster-list > button:focus-visible {
+  outline: 2px solid var(--mc-ai);
+  outline-offset: -2px;
+}
+.shell .view-agents .agent-roster-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.shell .view-agents .agent-roster-copy strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shell .view-agents .agent-roster-copy > small {
+  margin: 0;
+  overflow: hidden;
+  color: var(--mc-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The observable one-line activity that used to need its own card grid. */
+.shell .view-agents .agent-roster-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.shell .view-agents .agent-roster-list > button > b {
+  color: var(--mc-text-dim);
+  font: 500 10px/1.7 var(--mc-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quiet end-of-list affordance — deliberately not a second primary CTA
+   competing with "Add more agents" in the header above. */
+.shell .view-agents .agent-roster-add {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--mc-space-2);
+  width: 100%;
+  min-height: 0;
+  margin-top: 2px;
+  padding: 9px;
+  color: var(--mc-text-muted);
+  text-align: left;
+  background: transparent;
+  border: 1px dashed var(--mc-border-strong);
+  border-radius: var(--mc-radius-sm);
+  cursor: pointer;
+  transition: background-color var(--mc-motion-fast), border-color var(--mc-motion-fast), color var(--mc-motion-fast);
+}
+.shell .view-agents .agent-roster-add:hover:not(:disabled) {
+  color: var(--mc-text);
+  background: var(--mc-surface-2);
+  border-color: color-mix(in srgb, var(--mc-ai) 45%, transparent);
+}
+.shell .view-agents .agent-roster-add:disabled { opacity: .45; cursor: not-allowed; }
+.shell .view-agents .agent-roster-add > span:first-child {
+  width: 26px;
+  height: 26px;
+  color: var(--mc-ai);
+  background: var(--mc-ai-soft);
+  border-radius: var(--mc-radius-xs);
+  font-size: 15px;
+}
+.shell .view-agents .agent-roster-add > span:last-child { display: grid; min-width: 0; gap: 1px; }
+.shell .view-agents .agent-roster-add strong { color: inherit; font-size: 12px; font-weight: 600; }
+.shell .view-agents .agent-roster-add small {
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  white-space: normal;
+}
+
+/* ----------------------------------------------------------- detail pane */
+
+.shell .view-agents .agent-operations__detail {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  background: var(--mc-surface);
+}
+
+@media (max-width: 1080px) {
+  .shell .view-agents .agent-operations.agent-operations-v2 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .shell .view-agents .agent-roster-strip {
+    grid-row: 2;
+    max-height: 232px;
+    border-right: 0;
+    border-bottom: 1px solid var(--mc-border);
+  }
+  .shell .view-agents .agent-operations__detail { grid-column: 1; grid-row: 3; }
+}
+
+/* ============================================================ dialog polish */
+
+.shell .experience { animation: none; }
+.shell [class$="-hero"] h1,
+.shell [class$="-hero"] h2 { margin-top: 6px; }

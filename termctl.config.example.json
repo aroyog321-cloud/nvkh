@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "project": {
+    "name": "my-app"
+  },
+  "sessions": [
+    {
+      "id": "server",
+      "name": "dev server",
+      "command": "npm run dev",
+      "cwd": "./web",
+      "env": { "PORT": "3000" }
+    },
+    {
+      "id": "api",
+      "name": "docker · api",
+      "command": "docker compose up",
+      "cwd": "./api",
+      "autoStart": false
+    },
+    { "id": "tests", "name": "test watcher", "command": "npm run test:watch", "cwd": "./web" },
+    {
+      "id": "pwsh",
+      "name": "PowerShell compatibility",
+      "command": "powershell.exe",
+      "args": ["-NoLogo"],
+      "powershellCompatibility": true,
+      "cwd": "."
+    },
+    { "id": "claude", "name": "claude · login feature", "command": "claude", "cwd": "." }
+  ],
+  "commands": [
+    { "id": "checks", "name": "Run all checks", "command": "npm test", "cwd": "." },
+    {
+      "id": "build",
+      "name": "Production build",
+      "command": "npm run build",
+      "cwd": ".",
+      "autoStart": true
+    }
+  ],
+  "recipes": [
+    {
+      "recipeVersion": 2,
+      "id": "daily-stack",
+      "name": "Daily development stack",
+      "steps": [
+        { "workerId": "api", "dependsOn": [], "readiness": "service", "timeoutMs": 20000 },
+        { "workerId": "server", "dependsOn": [], "readiness": "service", "timeoutMs": 20000 },
+        { "workerId": "tests", "dependsOn": ["api", "server"], "readiness": "tests", "timeoutMs": 30000 }
+      ],
+      "layoutId": "horizontal",
+      "sessionIds": ["api", "server", "tests"],
+      "maxParallel": 2,
+      "retryAttempts": 1,
+      "retryDelayMs": 500,
+      "restartPolicy": "reuse-running",
+      "failurePolicy": "stop",
+      "recoveryPolicy": "keep-running"
+    }
+  ]
+}

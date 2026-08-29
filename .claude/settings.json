@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "interfaces@interfaces": true,
+    "tastemaker@codeswithroh": true,
+    "frontend-design@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "mcp-server-dev@claude-plugins-official": true
+  }
+}

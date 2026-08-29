@@ -1,0 +1,40 @@
+import React from "react";
+
+function age(timestamp) {
+  if (!Number.isFinite(timestamp)) return "no events yet";
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 45) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+const VIEW_LABELS = {
+  groundstation: "Groundstation",
+  workspace: "Workspace",
+  needs: "Needs You",
+  agents: "Agents",
+  integrations: "Integrations",
+  recipes: "Recipes",
+  history: "History",
+  projects: "Projects",
+  settings: "Settings",
+  "mission-ai": "Mission AI"
+};
+
+export default function StatusBar({ state, workspace, sessions, activity, health, view, pendingCount = 0, onHelp }) {
+  const last = activity.at(-1);
+  const tone = health?.tone === "danger" ? "is-danger" : health?.tone === "warning" ? "is-warning" : "";
+  return <header className="mission-status-bar status-bar-premium instrument-tape" aria-label="Mission Control status">
+    <div className="status-bar-premium__left">
+      <span className="status-bar-premium__project" title={workspace?.directory || workspace?.path || ""}><i className={`status-bar-premium__dot ${tone}`}/>{workspace?.name || "No project"}</span>
+      <span className={`status-bar-premium__indicator is-connected ${tone}`}><i/>{health?.label || "Engine ready"}</span>
+      <span className="status-bar-premium__crumb"><b>{VIEW_LABELS[view] || "Mission Control"}</b></span>
+    </div>
+    <div className="status-bar-premium__right">
+      <span className="status-bar-premium__meta">Protocol v{state?.contractVersion || "—"}</span>
+      <span className="status-bar-premium__meta">Last signal {age(last?.timestamp)}</span>
+      <span className={`status-bar-premium__meta ${pendingCount ? "is-warn" : ""}`}><b>Needs you</b>{pendingCount || "—"}</span>
+      <button className="status-bar-premium__help" onClick={onHelp} aria-label="Open keyboard help">Help <kbd>F1</kbd></button>
+    </div>
+  </header>;
+}

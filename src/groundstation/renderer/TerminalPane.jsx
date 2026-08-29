@@ -1,0 +1,427 @@
+import React from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import {
+  missionApi,
+  notificationPayload,
+  notificationType,
+  streamIdentifier
+} from "./missionApi.js";
+
+const TERMINAL_THEMES = {
+  orbital: { background: "#080c0c", foreground: "#d7dcd7", cursor: "#8de0ba", cursorAccent: "#101313", selectionBackground: "#2b3b31", black: "#111413", red: "#f09090", green: "#8de0ba", yellow: "#f0c060", blue: "#7eb8f7", magenta: "#b8a8f8", cyan: "#5cd8e8", white: "#edf2ef", brightBlack: "#5a6460" },
+  solar: { background: "#f7f5ed", foreground: "#27352d", cursor: "#347849", cursorAccent: "#f7f5ed", selectionBackground: "#c9dfcf", black: "#26312b", red: "#a23d38", green: "#347849", yellow: "#986719", blue: "#32699d", magenta: "#6653a8", cyan: "#277a75", white: "#fffdf8", brightBlack: "#788078" },
+  contrast: { background: "#000000", foreground: "#ffffff", cursor: "#75ff9a", cursorAccent: "#000000", selectionBackground: "#31513a", black: "#000000", red: "#ff7d73", green: "#75ff9a", yellow: "#ffd45e", blue: "#7fc5ff", magenta: "#c7b5ff", cyan: "#70fff0", white: "#ffffff", brightBlack: "#b8b8b8" }
+};
+
+function PaneIcon({ name, size = 15 }) {
+  const paths = {
+    grip: <><circle cx="8" cy="7" r="1"/><circle cx="16" cy="7" r="1"/><circle cx="8" cy="12" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="8" cy="17" r="1"/><circle cx="16" cy="17" r="1"/></>,
+    expand: <><path d="M14 5h5v5"/><path d="m19 5-7 7"/><path d="M10 19H5v-5"/><path d="m5 19 7-7"/></>,
+    restore: <><rect x="5" y="7" width="12" height="12" rx="2"/><path d="M8 7V5h11v11h-2"/></>,
+    more: <><circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/></>
+  };
+  return <svg className="pane-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{paths[name]}</svg>;
+}
+
+function actionLabel(session) {
+  if (session?.status === "idle" || session?.status === "exited" || session?.status === "failed") {
+    return "Start";
+  }
+  return "Restart";
+}
+
+// Uptime derived from the engine-reported runtime. Never invented: an idle or
+// exited worker reports no uptime rather than a stale duration.
+function uptime(session) {
+  if (!session?.isAlive || !Number.isFinite(session?.startTime)) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - session.startTime) / 60000));
+  if (minutes < 1) return "<1m";
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+// Ownership is a fact, not a guess: Mission Control owns every PTY it spawns.
+// The PID comes straight from the engine summary when a process is live.
+function ownership(session) {
+  if (session?.isAlive && Number.isFinite(session?.pid)) return `Engine PTY · pid ${session.pid}`;
+  if (session?.isAlive) return "Engine-owned PTY";
+  if (session?.status === "failed") return Number.isInteger(session?.exitCode) ? `Exited ${session.exitCode}` : "Failed";
+  if (session?.status === "exited") return Number.isInteger(session?.exitCode) ? `Exited ${session.exitCode}` : "Exited";
+  return "No process";
+}
+
+// One short line describing what the worker is doing right now, using only
+// engine-reported evidence. Falls back to silence, never to a fabricated state.
+function activity(session, connection) {
+  if (session?.attentionRequired && session.attentionReason) return session.attentionReason;
+  if (session?.spawnError) return session.spawnError;
+  if (!session?.isAlive) return session?.status === "failed" ? "Review the last output before restarting" : "Not running";
+  if (connection === "overflow") return "Output exceeded the desktop stream buffer";
+  const line = String(session?.lastLine || "").trim();
+  return line ? line.slice(0, 140) : "Running · no output reported yet";
+}
+
+export default function TerminalPane({ session, sessions, profile, active, expanded, minimized = false, shortcut, terminalFontSize = 13, terminalTheme = "orbital", terminalCursor = "bar", terminalScrollback = 5000, onFocus, onToggleExpanded, onAction, onSelectSession, onDropSession, onReconfigure, onTerminalError, onTerminalRecovered }) {
+  const hostRef = React.useRef(null);
+  const terminalRef = React.useRef(null);
+  const fitRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  // Tracks whether the engine-owned PTY behind this pane is still running.
+  // Once it exits, the pane keeps reflowing xterm locally but must never send
+  // another `terminal.resize` to a dead stream.
+  const aliveRef = React.useRef(Boolean(session?.isAlive));
+  const minimizedRef = React.useRef(Boolean(minimized));
+  const onTerminalErrorRef = React.useRef(onTerminalError);
+  const onTerminalRecoveredRef = React.useRef(onTerminalRecovered);
+  onTerminalErrorRef.current = onTerminalError;
+  onTerminalRecoveredRef.current = onTerminalRecovered;
+  const [connection, setConnection] = React.useState(session?.isAlive ? "connecting" : "offline");
+  const [message, setMessage] = React.useState("");
+  const [chooserOpen, setChooserOpen] = React.useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  const [findOpen, setFindOpen] = React.useState(false);
+  const [findQuery, setFindQuery] = React.useState("");
+  const [findMessage, setFindMessage] = React.useState("");
+  const findCursorRef = React.useRef(null);
+
+  React.useLayoutEffect(() => {
+    minimizedRef.current = Boolean(minimized);
+  }, [minimized]);
+
+  const find = React.useCallback(direction => {
+    const terminal = terminalRef.current;
+    const query = findQuery.trim();
+    if (!terminal || !query) return;
+    const buffer = terminal.buffer.active;
+    const previous = findCursorRef.current?.query === query ? findCursorRef.current : null;
+    const firstRow = previous ? previous.row + direction : direction > 0 ? 0 : Math.max(0, buffer.length - 1);
+    for (let offset = 0; offset < buffer.length; offset++) {
+      const row = (firstRow + direction * offset + buffer.length) % buffer.length;
+      const text = buffer.getLine(row)?.translateToString(true) || "";
+      const column = direction > 0 ? text.toLowerCase().indexOf(query.toLowerCase()) : text.toLowerCase().lastIndexOf(query.toLowerCase());
+      if (column < 0) continue;
+      terminal.select(column, row, query.length);
+      terminal.scrollToLine(row);
+      findCursorRef.current = { query, row, column };
+      setFindMessage(`Line ${row + 1}`);
+      return;
+    }
+    setFindMessage("No match");
+  }, [findQuery]);
+
+  React.useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !session) return undefined;
+    aliveRef.current = Boolean(session.isAlive);
+
+    const terminal = new Terminal({
+      allowProposedApi: false,
+      convertEol: false,
+      cursorBlink: active,
+      cursorStyle: terminalCursor,
+      fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, monospace",
+      fontSize: terminalFontSize,
+      fontWeight: "400",
+      fontWeightBold: "600",
+      letterSpacing: 0.15,
+      lineHeight: 1.3,
+      scrollback: terminalScrollback,
+      theme: TERMINAL_THEMES[terminalTheme] || TERMINAL_THEMES.orbital
+    });
+    const fit = new FitAddon();
+    terminal.loadAddon(fit);
+    terminal.open(host);
+    terminalRef.current = terminal;
+    fitRef.current = fit;
+
+    let disposed = false;
+    let unsubscribe = () => {};
+    let inputDisposable = { dispose() {} };
+    let resizeFrame = null;
+    const reportOperationalError = value => {
+      const reason = value instanceof Error ? value.message : String(value || "Terminal connection failed");
+      setMessage(reason);
+      onTerminalErrorRef.current?.(session.id, reason);
+      return reason;
+    };
+
+    const fitAndResize = () => {
+      if (disposed || !host.isConnected || minimizedRef.current) return;
+      try {
+        fit.fit();
+      } catch {
+        return;
+      }
+      // Reflow xterm locally on every geometry change, but only tell the
+      // engine to resize the PTY while it is still alive. Resizing an exited
+      // worker is rejected by the Protocol and must not be attempted.
+      const streamId = streamRef.current;
+      if (streamId && aliveRef.current) {
+        void missionApi().request("terminal.resize", {
+          streamId,
+          cols: terminal.cols,
+          rows: terminal.rows
+        }).catch(error => { if (!disposed) reportOperationalError(error); });
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(fitAndResize);
+    });
+    resizeObserver.observe(host);
+
+    const open = async () => {
+      if (!session.isAlive) {
+        terminal.writeln("\x1b[38;2;103;110;105mWorker is resting. Use Start when you are ready.\x1b[0m");
+        setConnection("offline");
+        return;
+      }
+
+      setConnection("connecting");
+      try {
+        unsubscribe = missionApi().subscribe(notification => {
+          const type = notificationType(notification);
+          if (!["terminal:data", "terminal:exit", "terminal.exit", "terminal:overflow"].includes(type)) return;
+          const payload = notificationPayload(notification);
+          if (!streamRef.current || streamIdentifier(payload) !== streamRef.current) return;
+
+          if (type === "terminal:data") {
+            terminal.write(String(payload.data ?? ""));
+          } else if (type === "terminal:exit" || type === "terminal.exit") {
+            aliveRef.current = false;
+            setConnection("exited");
+            terminal.writeln("\r\n\x1b[38;2;100;114;125m[worker exited]\x1b[0m");
+          } else {
+            setConnection("overflow");
+            reportOperationalError("Output exceeded the desktop stream buffer. Reopen this pane to resync.");
+          }
+        });
+
+        const opened = await missionApi().request("terminal.open", { sessionId: session.id });
+        if (disposed) {
+          const orphanId = streamIdentifier(opened);
+          if (orphanId) void missionApi().request("terminal.close", { streamId: orphanId }).catch(() => {});
+          return;
+        }
+        if (opened?.ok === false) throw new Error(opened.error || "Terminal stream was rejected");
+
+        const streamId = streamIdentifier(opened);
+        if (!streamId) throw new Error("Terminal stream did not return an identifier");
+        streamRef.current = streamId;
+
+        const replay = opened.replay;
+        const replayData = typeof replay === "string" ? replay : replay?.data;
+        const replayComplete = typeof replay === "string" || replay?.complete !== false;
+        if (replayData && (replayComplete || replay?.source === "snapshot")) {
+          terminal.write(replayData);
+        } else {
+          const fallbackLines = opened.snapshot?.lines || opened.snapshotLines || [];
+          if (fallbackLines.length) terminal.write(`${fallbackLines.join("\r\n")}\r\n`);
+        }
+
+        const activated = await missionApi().request("terminal.activate", { streamId });
+        if (disposed) return;
+        const pending = activated?.pending ?? activated?.data ?? opened.pending;
+        if (pending) terminal.write(String(pending));
+        setConnection("live");
+        onTerminalRecoveredRef.current?.(session.id);
+        window.requestAnimationFrame(fitAndResize);
+
+        inputDisposable = terminal.onData(data => {
+          const currentStream = streamRef.current;
+          if (!currentStream) return;
+          void missionApi().request("terminal.write", { streamId: currentStream, data }).catch(error => {
+            if (!disposed) reportOperationalError(error);
+          });
+        });
+      } catch (openError) {
+        if (!disposed) {
+          setConnection("error");
+          const reason = reportOperationalError(openError);
+          terminal.writeln(`\x1b[38;2;255;123;114m[terminal unavailable: ${reason}]\x1b[0m`);
+        }
+      }
+    };
+
+    void open();
+
+    return () => {
+      disposed = true;
+      resizeObserver.disconnect();
+      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+      inputDisposable.dispose();
+      unsubscribe?.();
+      const streamId = streamRef.current;
+      streamRef.current = null;
+      if (streamId) void missionApi().request("terminal.close", { streamId }).catch(() => {});
+      terminal.dispose();
+      terminalRef.current = null;
+      fitRef.current = null;
+    };
+  // startTime is the terminal epoch exposed by the engine summary. A fast
+  // restart can transition back to running before React observes the exited
+  // state, so this dependency still replaces the stale stream deterministically.
+  }, [session?.id, session?.isAlive, session?.startTime, terminalFontSize, terminalTheme, terminalCursor, terminalScrollback]);
+
+  React.useEffect(() => {
+    const handle = event => {
+      if (!active || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
+      event.preventDefault();
+      setFindOpen(true);
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [active]);
+
+  React.useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit();
+        if (active) terminalRef.current?.focus();
+      } catch {
+        // The pane may be transitioning between grid and focus mode.
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, expanded, minimized]);
+
+  React.useEffect(() => {
+    if (terminalRef.current) terminalRef.current.options.cursorBlink = active;
+  }, [active]);
+
+  // Uptime is a clock, so it needs its own slow tick. It runs only while the
+  // engine reports the worker alive and is cleared on exit or unmount, so no
+  // timer survives a stopped pane.
+  const [, setUptimeTick] = React.useState(0);
+  React.useEffect(() => {
+    if (!session?.isAlive) return undefined;
+    const timer = window.setInterval(() => setUptimeTick(value => value + 1), 30000);
+    return () => window.clearInterval(timer);
+  }, [session?.isAlive, session?.startTime]);
+
+  if (!session) return null;
+  const uptimeLabel = uptime(session);
+  const activityLabel = activity(session, connection);
+  const runAction = session.isAlive ? "restart" : "start";
+  const requestAction = type => {
+    setActionMenuOpen(false);
+    onAction?.(type, session.id);
+  };
+  const copySelection = async () => {
+    setActionMenuOpen(false);
+    const value = terminalRef.current?.getSelection();
+    if (!value) {
+      setMessage("Select terminal text before copying.");
+      return;
+    }
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable on this system.");
+      await navigator.clipboard.writeText(value);
+      setMessage("Selection copied.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The selection could not be copied.");
+    }
+  };
+  const clearDisplay = () => {
+    setActionMenuOpen(false);
+    terminalRef.current?.clear();
+    setMessage("Display cleared. The worker is still running.");
+  };
+
+  return (
+    <article
+      className={`terminal-pane role-${profile?.key || "terminal"} ${active ? "is-active" : ""} ${expanded ? "is-expanded" : ""} ${minimized ? "is-minimized" : ""} ${dragOver ? "is-drop-target" : ""}`}
+      aria-label={minimized ? `${session.name}, minimized terminal` : undefined}
+      onMouseDown={onFocus}
+      onDragEnter={event => { if (event.dataTransfer.types.includes("application/x-mission-worker")) setDragOver(true); }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false); }}
+      onDragOver={event => { if (event.dataTransfer.types.includes("application/x-mission-worker")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
+      onDrop={event => { event.preventDefault(); setDragOver(false); const id = event.dataTransfer.getData("application/x-mission-worker"); if (id && id !== session.id) onDropSession(id); }}
+    >
+      {minimized ? <header className="terminal-pane__header terminal-pane__header--minimized" onClick={onToggleExpanded}>
+        <div className="terminal-pane__identity">
+          <span className={`status-dot status-${session.status}`}/>
+          <div><strong>{session.name}</strong><span className={`terminal-role-tag role-${profile?.key || "terminal"}`}>{profile?.label || "Terminal"}</span></div>
+        </div>
+        <span className="terminal-minimized-state">{session.isAlive ? "Live" : session.status}</span>
+        <button type="button" className="icon-button terminal-restore" title={`Maximize ${session.name}`} aria-label={`Maximize ${session.name}`} onClick={event => { event.stopPropagation(); onToggleExpanded?.(); }}><PaneIcon name="restore"/></button>
+      </header> : <>
+      <header className="terminal-pane__header">
+        <div className="terminal-pane__identity">
+          <span className={`status-dot status-${session.status}`} />
+          <div>
+            <button
+              type="button"
+              className="terminal-session-trigger"
+              onClick={event => { event.stopPropagation(); setChooserOpen(value => !value); }}
+              aria-expanded={chooserOpen}
+              aria-haspopup="menu"
+              title={`Switch pane · ${session.command}`}
+            >
+              <strong>{session.name}</strong><span aria-hidden="true">⌄</span>
+            </button>
+            {chooserOpen && <div className="terminal-session-menu" role="menu" onMouseDown={event => event.stopPropagation()}>
+              <div className="terminal-session-menu__label">SHOW IN THIS PANE</div>
+              {sessions.map(option => <button type="button" role="menuitem" className={option.id === session.id ? "is-current" : ""} key={option.id} onClick={() => { onSelectSession(option.id); setChooserOpen(false); }}><i className={`status-${option.status}`}/><span><strong>{option.name}</strong><small>{option.command}</small></span>{option.id === session.id && <b>Current</b>}</button>)}
+              <button type="button" role="menuitem" onClick={() => { onSelectSession(""); setChooserOpen(false); }}><i/><span><strong>Empty pane</strong><small>Free this position</small></span></button>
+            </div>}
+            {/* Engine-reported facts only: role, state, uptime, ownership, cwd. */}
+            <span className="terminal-pane__facts">
+              {profile?.label && <b className={`terminal-role-tag role-${profile.key}`}>{profile.label}</b>}
+              <em>{session.status}</em>
+              {uptimeLabel && <em title="Uptime since the engine started this worker">{uptimeLabel}</em>}
+              <em title="PTY ownership">{ownership(session)}</em>
+              <em className="terminal-pane__cwd" title={session.cwd || "."}>{session.cwd || "."}</em>
+            </span>
+          </div>
+        </div>
+        <div className={`terminal-pane__telemetry connection-${connection}`} title={profile?.detail || connection}><i/><span>{connection === "live" ? "Live" : connection}</span></div>
+        <div className="terminal-pane__actions">
+          {shortcut && <kbd className="terminal-shortcut" title={`Focus pane · Alt ${shortcut}`}>Alt {shortcut}</kbd>}
+          <button type="button" className="terminal-drag-handle" draggable title="Drag terminal to another pane" aria-label={`Move ${session.name} to another terminal pane`} onMouseDown={event => event.stopPropagation()} onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-mission-worker", session.id); event.dataTransfer.setData("text/plain", session.id); }}>
+            <PaneIcon name="grip"/>
+          </button>
+          <button type="button" className="quiet-button" onClick={() => setFindOpen(value => !value)} aria-expanded={findOpen} title="Search terminal · Ctrl F">Find</button>
+          <DropdownMenu.Root open={actionMenuOpen} onOpenChange={setActionMenuOpen}>
+            <DropdownMenu.Trigger asChild><button type="button" className="icon-button terminal-more" aria-label={`More actions for ${session.name}`} onMouseDown={event => event.stopPropagation()}><PaneIcon name="more"/></button></DropdownMenu.Trigger>
+            <DropdownMenu.Portal><DropdownMenu.Content className="terminal-action-menu" align="end" sideOffset={7} collisionPadding={12} onCloseAutoFocus={event => event.preventDefault()}>
+              <DropdownMenu.Item className="terminal-action-item" onSelect={() => requestAction(runAction)}><span>{actionLabel(session)}</span><small>{session.isAlive ? "Restart the existing engine worker" : "Start its configured command"}</small></DropdownMenu.Item>
+              {session.attentionRequired && <DropdownMenu.Item className="terminal-action-item" onSelect={() => requestAction("acknowledge")}><span>Acknowledge alert</span><small>Clear the operator notification only</small></DropdownMenu.Item>}
+              <DropdownMenu.Separator className="terminal-action-separator"/>
+              <DropdownMenu.Item className="terminal-action-item is-compact" onSelect={() => { setActionMenuOpen(false); onFocus?.(); terminalRef.current?.focus(); }}><span>Focus terminal</span></DropdownMenu.Item>
+              <DropdownMenu.Item className="terminal-action-item is-compact" onSelect={() => { setActionMenuOpen(false); setFindOpen(true); }}><span>Find in output</span></DropdownMenu.Item>
+              <DropdownMenu.Item className="terminal-action-item is-compact" onSelect={() => void copySelection()}><span>Copy selection</span></DropdownMenu.Item>
+              <DropdownMenu.Item className="terminal-action-item is-compact" onSelect={clearDisplay}><span>Clear display</span></DropdownMenu.Item>
+              <DropdownMenu.Separator className="terminal-action-separator"/>
+              {onReconfigure && <DropdownMenu.Item className="terminal-action-item" onSelect={() => { setActionMenuOpen(false); onReconfigure(session); }}><span>Reconfigure worker</span><small>Edit command, arguments, directory and restore policy</small></DropdownMenu.Item>}
+              <DropdownMenu.Separator className="terminal-action-separator"/>
+              {session.isAlive && <DropdownMenu.Item className="terminal-action-item is-warning" onSelect={() => requestAction("kill")}><span>Stop worker</span><small>Stop the active engine-owned PTY</small></DropdownMenu.Item>}
+              <DropdownMenu.Item className="terminal-action-item is-danger" onSelect={() => requestAction("remove")}><span>Delete terminal</span><small>Remove this worker definition after confirmation</small></DropdownMenu.Item>
+            </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Root>
+          <button
+            type="button"
+            className="icon-button"
+            title={expanded ? "Return to grid" : "Focus terminal"}
+            aria-label={expanded ? "Return to terminal grid" : `Focus ${session.name}`}
+            onClick={onToggleExpanded}
+          >
+            <PaneIcon name={expanded ? "restore" : "expand"}/>
+          </button>
+        </div>
+      </header>
+      {findOpen && <form className="terminal-find" onSubmit={event => { event.preventDefault(); find(1); }} onMouseDown={event => event.stopPropagation()}><input autoFocus value={findQuery} onChange={event => { setFindQuery(event.target.value); setFindMessage(""); findCursorRef.current = null; }} placeholder="Find in terminal output" aria-label={`Find in ${session.name} output`}/><span>{findMessage}</span><button type="button" onClick={() => find(-1)} aria-label="Previous match">↑</button><button type="submit" aria-label="Next match">↓</button><button type="button" onClick={() => { setFindOpen(false); setFindMessage(""); terminalRef.current?.clearSelection(); }} aria-label="Close terminal search">×</button></form>}
+      {message && <div className="terminal-warning">{message}</div>}
+      {/* Current activity, straight from engine state — never a fake progress bar. */}
+      <div className={`terminal-pane__activity ${session.attentionRequired ? "is-attention" : ""} ${session.status === "failed" ? "is-failed" : ""}`} title={activityLabel}>
+        <i aria-hidden="true"/><span>{activityLabel}</span>
+      </div>
+      </>}
+      <div className="terminal-host" ref={hostRef} aria-hidden={minimized || undefined} inert={minimized ? "" : undefined}/>
+    </article>
+  );
+}

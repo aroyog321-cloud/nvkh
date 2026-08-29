@@ -1,0 +1,223 @@
+/* ===========================================================================
+   Mission Control — unified design tokens (bridge)
+
+   Three overlapping token systems shipped in this renderer:
+     - styles.css      →  --void / --surface / --accent (sage green) …
+     - tokens.css      →  --mc-* (graphite + blue) + --green-* / --slate-* …
+     - uiFoundation.css →  --surface-raised / --surface-hover …
+
+   This file loads last and repoints every legacy alias at ONE semantic
+   system: deep graphite surfaces, a single blue operational accent, and
+   green reserved strictly for healthy/success — exactly the direction the
+   Experience Audit called for. Changing values here (not scattered literals)
+   is the whole point: one edit, one coherent palette.
+   ======================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  --font-family-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-family-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+
+  /* ---- canonical graphite scale ------------------------------------------ */
+  --mc-void: #060708;
+  --mc-canvas: #0a0b0d;
+  --mc-surface: #0e1013;
+  --mc-surface-2: #14161a;
+  --mc-surface-3: #1b1e23;
+  --mc-surface-4: #23272e;
+  --mc-border: #23262d;
+  --mc-border-strong: #333844;
+  --mc-border-faint: rgba(233, 238, 247, .06);
+
+  --mc-text: #f3f5f8;
+  --mc-text-soft: #c4c8d2;
+  --mc-text-muted: #868b98;
+  --mc-text-dim: #747b88;
+  --mc-text-ink: #04101f;
+
+  /* ---- one operational accent + semantic roles -------------------------- */
+  --mc-accent: #4f9dff;
+  --mc-accent-strong: #74b2ff;
+  --mc-accent-soft: rgba(79, 157, 255, .14);
+  --mc-accent-line: rgba(79, 157, 255, .42);
+
+  --mc-ai: #8f7bff;
+  --mc-ai-strong: #a394ff;
+  --mc-ai-soft: rgba(143, 123, 255, .15);
+
+  --mc-ok: #3ecf8e;
+  --mc-ok-soft: rgba(62, 207, 142, .13);
+  --mc-warning: #eaa544;
+  --mc-warning-soft: rgba(234, 165, 68, .13);
+  --mc-danger: #ff5b66;
+  --mc-danger-soft: rgba(255, 91, 102, .14);
+  --mc-info: var(--mc-accent);
+
+  /* ---- spacing / radius / motion / elevation -------------------------- */
+  --mc-space-1: 4px;  --mc-space-2: 8px;  --mc-space-3: 12px;
+  --mc-space-4: 16px; --mc-space-5: 20px; --mc-space-6: 24px;
+  --mc-space-8: 32px; --mc-space-10: 40px;
+
+  --mc-radius-xs: 5px;
+  --mc-radius-sm: 8px;
+  --mc-radius-md: 11px;
+  --mc-radius-lg: 16px;
+  --mc-radius-pill: 999px;
+
+  --mc-shadow-1: 0 1px 2px rgba(0, 0, 0, .3);
+  --mc-shadow-2: 0 12px 32px -12px rgba(0, 0, 0, .55);
+  --mc-shadow-float: 0 24px 64px -24px rgba(0, 0, 0, .72), 0 1px 0 rgba(255, 255, 255, .03) inset;
+  --mc-focus-ring: 0 0 0 2px var(--mc-void), 0 0 0 4px var(--mc-accent-line);
+
+  /* ---- premium surface detail -------------------------------------------
+
+     Depth on a near-black canvas cannot come from shadow alone: an unlit
+     panel reads as a hole. Every raised surface pairs a cast shadow with a
+     1px top light-edge, the way a physical panel catches the light above
+     it. `--mc-hairline` is the internal separator — deliberately weaker
+     than `--mc-border`, which stays the outer edge of a surface. */
+  --mc-font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace;
+  --mc-hairline: rgba(233, 238, 247, .055);
+  --mc-edge: inset 0 1px 0 rgba(255, 255, 255, .045);
+  --mc-edge-strong: inset 0 1px 0 rgba(255, 255, 255, .07);
+  --mc-raise-1: 0 1px 1px rgba(0, 0, 0, .34), 0 2px 6px -2px rgba(0, 0, 0, .4), var(--mc-edge);
+  --mc-raise-2: 0 2px 4px -1px rgba(0, 0, 0, .38), 0 10px 26px -10px rgba(0, 0, 0, .55), var(--mc-edge);
+  --mc-ring-accent: 0 0 0 1px var(--mc-accent-line), 0 0 22px -8px var(--mc-accent);
+
+  --mc-motion-fast: 120ms ease-out;
+  --mc-motion-base: 190ms ease-out;
+  --mc-motion-enter: 260ms cubic-bezier(.16, 1, .3, 1);
+
+  /* =====================================================================
+     Legacy aliases — every historical name now resolves here.
+     ===================================================================== */
+
+  /* styles.css */
+  --void: var(--mc-void);
+  --base: var(--mc-canvas);
+  --surface: var(--mc-surface);
+  --surface-2: var(--mc-surface-2);
+  --surface-3: var(--mc-surface-3);
+  --line: var(--mc-border);
+  --line-strong: var(--mc-border-strong);
+  --text: var(--mc-text);
+  --muted: var(--mc-text-muted);
+  --dim: var(--mc-text-dim);
+  --accent: var(--mc-accent);
+  --accent-strong: var(--mc-accent-strong);
+  --accent-ink: var(--mc-text-ink);
+  --amber: var(--mc-warning);
+  --red: var(--mc-danger);
+  --blue: var(--mc-accent);
+  --shadow-menu: var(--mc-shadow-2);
+  --shadow-dialog: var(--mc-shadow-float);
+  --shadow-focus: 0 0 0 2px var(--mc-accent-soft);
+  --shadow-card: var(--mc-shadow-1);
+  --spring: cubic-bezier(.16, 1, .3, 1);
+  --radius: var(--mc-radius-md);
+  --radius-lg: var(--mc-radius-lg);
+  --radius-xl: var(--mc-radius-lg);
+
+  /* tokens.css compatibility chain */
+  --mc-accent-ink: var(--mc-text-ink);
+  --mc-accent-soft: rgba(79, 157, 255, .13);
+  --green-300: var(--mc-ok);
+  --green-400: var(--mc-ok);
+  --green-500: #34b87d;
+  --blue-300: var(--mc-accent-strong);
+  --blue-500: var(--mc-accent);
+  --violet-300: var(--mc-ai-strong);
+  --violet-500: var(--mc-ai);
+  --amber-300: var(--mc-warning);
+  --slate-50: var(--mc-text);
+  --slate-200: var(--mc-text-soft);
+  --slate-400: var(--mc-text-muted);
+  --slate-500: var(--mc-text-dim);
+  --slate-800: var(--mc-surface-3);
+  --slate-850: var(--mc-surface-2);
+  --slate-900: var(--mc-surface);
+  --slate-950: var(--mc-void);
+  --orbital-canvas: var(--mc-void);
+  --orbital-sidebar: var(--mc-void);
+  --orbital-work: var(--mc-canvas);
+  --orbital-raised: var(--mc-surface);
+  --orbital-card: var(--mc-surface-2);
+  --orbital-accent: var(--mc-accent);
+  --orbital-text: var(--mc-text);
+
+  /* uiFoundation.css */
+  --surface-raised: var(--mc-surface-2);
+  --surface-hover: var(--mc-surface-3);
+  --surface-selected: var(--mc-accent-soft);
+  --shadow-low: 0 1px 0 rgba(255, 255, 255, .02) inset, 0 10px 28px -20px rgba(0, 0, 0, .6);
+  --shadow-float: var(--mc-shadow-float);
+
+  /* premiumDesign.css / experience* semantic status names */
+  --surface-canvas: var(--mc-canvas);
+  --accent-primary: var(--mc-accent);
+  --accent-primary-glow: var(--mc-accent-soft);
+  --accent-ai: var(--mc-ai);
+  --accent-warning: var(--mc-warning);
+  --accent-attention: var(--mc-warning);
+  --accent-vscode: var(--mc-accent);
+  --accent-recipe: var(--mc-ai);
+  --status-needs-you: var(--mc-warning);
+  --border-subtle: var(--mc-border);
+  --border-default: var(--mc-border);
+  --text-dim-semantic: var(--mc-text-dim);
+  --text-muted-semantic: var(--mc-text-muted);
+  --radius-control-semantic: var(--mc-radius-sm);
+}
+
+/* Light + high-contrast themes keep working; they only need the accent and
+   success roles kept distinct. */
+.theme-solar {
+  color-scheme: light;
+  --mc-void: #e7e8eb;
+  --mc-canvas: #f3f4f6;
+  --mc-surface: #ffffff;
+  --mc-surface-2: #eceef2;
+  --mc-surface-3: #e1e4e9;
+  --mc-surface-4: #d2d6dd;
+  --mc-border: #c8ccd4;
+  --mc-border-strong: #aeb4bf;
+  --mc-border-faint: rgba(18, 23, 32, .08);
+  --mc-text: #11151c;
+  --mc-text-soft: #303743;
+  --mc-text-muted: #525b69;
+  --mc-text-dim: #626c7a;
+  --mc-text-ink: #ffffff;
+  --mc-accent: #2f6fd0;
+  --mc-accent-strong: #235bad;
+  --mc-accent-soft: rgba(47, 111, 208, .12);
+  --mc-accent-line: rgba(47, 111, 208, .38);
+  --mc-ai: #6552c7;
+  --mc-ai-strong: #513dac;
+  --mc-ai-soft: rgba(101, 82, 199, .12);
+  --mc-ok: #1f8b57;
+  --mc-ok-soft: rgba(31, 139, 87, .11);
+  --mc-warning: #9a6208;
+  --mc-warning-soft: rgba(154, 98, 8, .11);
+  --mc-danger: #bd303b;
+  --mc-danger-soft: rgba(189, 48, 59, .11);
+  --mc-hairline: rgba(18, 23, 32, .07);
+  --mc-edge: inset 0 1px 0 rgba(255, 255, 255, .8);
+  --mc-edge-strong: inset 0 1px 0 rgba(255, 255, 255, .95);
+  --mc-shadow-1: 0 1px 2px rgba(18, 23, 32, .1);
+  --mc-shadow-2: 0 12px 32px -16px rgba(18, 23, 32, .28);
+  --mc-shadow-float: 0 24px 64px -28px rgba(18, 23, 32, .34);
+  --mc-focus-ring: 0 0 0 2px var(--mc-surface), 0 0 0 4px var(--mc-accent-line);
+  --accent: #2f6fd0;
+  --blue: #2f6fd0;
+}
+.theme-contrast {
+  --mc-accent: #7cb8ff;
+  --mc-border: #4a4a4a;
+  --mc-border-strong: #6a6a6a;
+  --accent: #7cb8ff;
+  --line: #4a4a4a;
+  --line-strong: #6a6a6a;
+}
+
+html, body { background: var(--mc-void); }

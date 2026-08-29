@@ -1,0 +1,156 @@
+/* Mission Control Design System — Concept alignment
+   Deep-graphite instrument surfaces, a single blue operational accent, and
+   high-contrast text. This file is the canonical source; theme-concept.css
+   (loaded last) re-points the remaining legacy token systems to these values. */
+
+:root {
+  color-scheme: dark;
+
+  --mc-void: #060709;
+  --mc-canvas: #0a0b0e;
+  --mc-surface: #0e1013;
+  --mc-surface-2: #14161b;
+  --mc-surface-3: #1b1e25;
+  --mc-border: #23262f;
+  --mc-border-strong: #323644;
+  --mc-text: #f4f5f7;
+  --mc-text-soft: #c2c5cf;
+  --mc-text-muted: #828693;
+  --mc-text-dim: #565a68;
+
+  --mc-accent: #4f9eff;
+  --mc-accent-strong: #69acff;
+  --mc-accent-ink: #04101f;
+  --mc-accent-soft: rgba(79, 158, 255, .13);
+  --mc-ai: #8f7bff;
+  --mc-ai-strong: #7c6cf2;
+  --mc-ai-soft: rgba(143, 123, 255, .15);
+  --mc-ok: #3ecf8e;
+  --mc-ok-soft: rgba(62, 207, 142, .13);
+  --mc-danger: #ff5c67;
+  --mc-danger-soft: rgba(255, 92, 103, .14);
+  --mc-warning: #eea23f;
+  --mc-warning-soft: rgba(238, 162, 63, .13);
+  --mc-info: #4f9eff;
+
+  --font-family-display: "Space Grotesk", Inter, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-family-ui: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-family-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  --text-11: .6875rem;
+  --text-12: .75rem;
+  --text-13: .8125rem;
+  --text-14: .875rem;
+  --text-16: 1rem;
+  --text-20: 1.25rem;
+  --text-28: 1.75rem;
+  --text-36: 2.25rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .32);
+  --shadow-2: 0 12px 30px rgba(0, 0, 0, .32);
+  --shadow-3: 0 40px 100px -30px rgba(0, 0, 0, .7);
+  --focus-ring: 0 0 0 2px var(--mc-void), 0 0 0 4px rgba(79, 158, 255, .72);
+
+  --motion-fast: 120ms ease-out;
+  --motion-base: 200ms ease-out;
+  --motion-enter: 280ms cubic-bezier(.16, 1, .3, 1);
+  --motion-exit: 160ms ease-in;
+
+  /* Compatibility chain for the established renderer components.
+     "green" now carries only the healthy/success role; the operational
+     accent is blue and flows through the --blue / --accent aliases. */
+  --green-50: #e8faf1;
+  --green-100: #cdf3e0;
+  --green-200: #a7e9c8;
+  --green-300: #77dcac;
+  --green-400: var(--mc-ok);
+  --green-500: #34b87d;
+  --green-600: #2b9a68;
+  --green-700: #237c54;
+  --green-800: #1b5f41;
+  --green-900: #144932;
+  --slate-0: #fff;
+  --slate-50: var(--mc-text);
+  --slate-100: #dfe2e8;
+  --slate-200: var(--mc-text-soft);
+  --slate-300: #9aa0ad;
+  --slate-400: var(--mc-text-muted);
+  --slate-500: var(--mc-text-dim);
+  --slate-600: #3c4150;
+  --slate-700: #2a2e3a;
+  --slate-800: var(--mc-surface-3);
+  --slate-850: var(--mc-surface-2);
+  --slate-900: var(--mc-surface);
+  --slate-950: var(--mc-void);
+  --black: #000;
+  --violet-300: #b7abff;
+  --violet-500: var(--mc-ai-strong);
+  --blue-300: #8bbcff;
+  --blue-500: var(--mc-accent);
+  --amber-300: var(--mc-warning);
+  --amber-500: #d79a3f;
+  --cyan-300: #67cde0;
+  --cyan-500: #31a8c0;
+  --teal-300: #6bd3c2;
+  --teal-500: #39ae9c;
+  --rose-300: #e995aa;
+  --red-300: var(--mc-danger);
+  --orange-300: #e99a70;
+
+  --orbital-canvas: var(--mc-void);
+  --orbital-sidebar: #060709;
+  --orbital-work: var(--mc-canvas);
+  --orbital-raised: var(--mc-surface);
+  --orbital-card: var(--mc-surface-2);
+  --orbital-overlay: rgba(10, 11, 14, .96);
+  --orbital-text: var(--mc-text);
+  --orbital-accent: var(--mc-accent);
+}
+
+.theme-solar {
+  color-scheme: light;
+  --theme-canvas: #f4f5f2;
+  --theme-sidebar: #eff1ed;
+  --theme-work: #fafbf8;
+  --theme-raised: #fff;
+  --theme-card: #f7f8f5;
+  --theme-overlay: rgba(255,255,252,.97);
+  --theme-text-strong: #182019;
+  --theme-text-default: #2e382f;
+  --theme-text-muted: #5c685e;
+  --theme-text-dim: #79827a;
+  --theme-accent: #2f6fd0;
+  --theme-accent-ink: #f7fbff;
+}
+
+.theme-contrast {
+  color-scheme: dark;
+  --theme-canvas: #000;
+  --theme-sidebar: #000;
+  --theme-work: #030303;
+  --theme-raised: #080808;
+  --theme-card: #0c0c0c;
+  --theme-overlay: rgba(0,0,0,.98);
+  --theme-text-strong: #fff;
+  --theme-text-default: #fff;
+  --theme-text-muted: #e0e0e0;
+  --theme-text-dim: #b8b8b8;
+  --theme-accent: #7cb8ff;
+  --theme-accent-ink: #000;
+}

@@ -1,0 +1,319 @@
+"use strict";
+
+const crypto = require("node:crypto");
+const EventEmitter = require("node:events");
+const http = require("node:http");
+const os = require("node:os");
+const { redactText } = require("./contextSanitizer.cjs");
+
+const MOBILE_API_VERSION = 1;
+const MOBILE_PAIR_PATH = "/mobile/v1/pair";
+const MOBILE_REQUEST_PATH = "/mobile/v1/request";
+const MOBILE_INVITE_PATH = "/mobile/v1/invite";
+const MOBILE_PAIRING_TTL_MS = 5 * 60 * 1000;
+const MOBILE_APPROVAL_TTL_MS = 15 * 60 * 1000;
+const MOBILE_CLOCK_SKEW_MS = 2 * 60 * 1000;
+const MOBILE_NONCE_TTL_MS = 5 * 60 * 1000;
+const MAX_MOBILE_REQUEST_BYTES = 256 * 1024;
+
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function b64(value) { return Buffer.from(value).toString("base64url"); }
+function fromB64(value) { return Buffer.from(String(value || ""), "base64url"); }
+function safeName(value) { return String(value || "Mobile device").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80) || "Mobile device"; }
+function safeReason(value) { return redactText(value, { maxLength: 500 }).value.trim() || "No reason provided"; }
+function timingSafe(left, right) { const a = Buffer.from(String(left || "")); const b = Buffer.from(String(right || "")); return a.length === b.length && crypto.timingSafeEqual(a, b); }
+
+function pairingMessage(value) { return [value.pairingId, value.nonce, safeName(value.deviceName), value.clientPublicKey].join("|"); }
+function pairingProof(code, value) { return crypto.createHmac("sha256", String(code)).update(pairingMessage(value)).digest("base64url"); }
+
+function derivePairingKey(privateKey, publicKey, nonce) {
+  const shared = crypto.diffieHellman({ privateKey, publicKey });
+  return Buffer.from(crypto.hkdfSync("sha256", shared, fromB64(nonce), "mission-control-mobile-pairing-v1", 32));
+}
+
+function envelopeKey(secret) {
+  const raw = fromB64(secret);
+  if (raw.length !== 32) throw new Error("Mobile credential is invalid");
+  return raw;
+}
+
+function encryptEnvelope(key, value, aad = "") {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(key), iv);
+  cipher.setAAD(Buffer.from(aad));
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
+  return { version: MOBILE_API_VERSION, iv: b64(iv), ciphertext: b64(ciphertext), tag: b64(cipher.getAuthTag()) };
+}
+
+function decryptEnvelope(key, envelope, aad = "") {
+  if (!envelope || envelope.version !== MOBILE_API_VERSION) throw new Error("Mobile encrypted envelope version is invalid");
+  const iv = fromB64(envelope.iv);
+  const tag = fromB64(envelope.tag);
+  const ciphertext = fromB64(envelope.ciphertext);
+  if (iv.length !== 12 || tag.length !== 16 || ciphertext.length > MAX_MOBILE_REQUEST_BYTES) throw new Error("Mobile encrypted envelope is invalid");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", Buffer.from(key), iv);
+  decipher.setAAD(Buffer.from(aad));
+  decipher.setAuthTag(tag);
+  return JSON.parse(Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8"));
+}
+
+function importClientKey(value) {
+  const bytes = fromB64(value);
+  if (!bytes.length || bytes.length > 256) throw new Error("Mobile pairing public key is invalid");
+  try { return crypto.createPublicKey({ key: bytes, format: "der", type: "spki" }); }
+  catch { throw new Error("Mobile pairing public key is invalid"); }
+}
+
+class MobileCompanionGateway extends EventEmitter {
+  constructor(options = {}) {
+    super();
+    if (!options.store) throw new TypeError("MobileCompanionGateway requires a store");
+    if (!options.missionContext || typeof options.missionContext.snapshot !== "function") throw new TypeError("MobileCompanionGateway requires Mission Context");
+    if (typeof options.getEngineApi !== "function") throw new TypeError("MobileCompanionGateway requires getEngineApi");
+    this.store = options.store;
+    this.missionContext = options.missionContext;
+    this.getEngineApi = options.getEngineApi;
+    this.http = options.http || http;
+    this.networkInterfaces = options.networkInterfaces || os.networkInterfaces;
+    this.now = options.now || Date.now;
+    this.randomBytes = options.randomBytes || crypto.randomBytes;
+    this.randomUUID = options.randomUUID || crypto.randomUUID;
+    this.server = null;
+    this.address = null;
+    this.invitations = new Map();
+    this.seenNonces = new Map();
+    this.lastError = null;
+    this.disposed = false;
+  }
+
+  status() {
+    this.#expire();
+    const stored = this.store.status();
+    const port = this.address?.port || stored.port;
+    return { ...stored, running: Boolean(this.server?.listening), host: "0.0.0.0", port, endpoints: this.#endpoints(port), activeInvitationCount: this.invitations.size, lastError: this.lastError, transport: "application-layer-aes-256-gcm", authority: "approval-gated-no-shell" };
+  }
+
+  subscribe(callback) { if (typeof callback !== "function") throw new TypeError("Mobile companion subscribe requires a callback"); this.on("status", callback); return () => this.off("status", callback); }
+
+  async configure(value = {}) {
+    if (value.enabled === true && !this.getEngineApi()?.getWorkspace?.()?.persistent) throw new Error("Open a persistent project before enabling Mobile Companion");
+    const previous = this.store.status();
+    const next = this.store.configure(value);
+    const restart = this.server?.listening && next.enabled && previous.port !== next.port;
+    if (!next.enabled) await this.stop();
+    else if (!this.server?.listening || restart) { if (restart) await this.stop(); await this.start(); }
+    this.#audit({ kind: "configuration", outcome: next.enabled ? "enabled" : "disabled", capability: next.scopes.join(",") });
+    this.#emitStatus();
+    return this.status();
+  }
+
+  async start() {
+    if (this.disposed) throw new Error("Mobile Companion is disposed");
+    if (this.server?.listening) return this.status();
+    const stored = this.store.status();
+    if (!stored.enabled) return this.status();
+    if (!stored.available) throw new Error("OS credential encryption is unavailable; Mobile Companion remains disabled");
+    await new Promise((resolve, reject) => {
+      const server = this.http.createServer((request, response) => void this.#handleHttp(request, response));
+      server.requestTimeout = 15_000; server.headersTimeout = 10_000; server.keepAliveTimeout = 5_000; server.maxHeadersCount = 48;
+      server.once("error", error => { if (this.server === server) this.server = null; reject(new Error(`Mobile Companion could not bind to port ${stored.port}: ${error.message}`)); });
+      server.listen(stored.port, "0.0.0.0", () => { this.server = server; this.address = server.address(); this.lastError = null; resolve(); });
+    });
+    this.#emitStatus();
+    return this.status();
+  }
+
+  async stop() {
+    const server = this.server; this.server = null; this.address = null; this.invitations.clear(); this.seenNonces.clear();
+    if (server) await new Promise(resolve => server.close(resolve));
+    this.#emitStatus();
+    return this.status();
+  }
+
+  createInvitation() {
+    if (!this.server?.listening) throw new Error("Enable Mobile Companion before pairing a device");
+    if (!this.store.protectionStatus().available) throw new Error("OS credential encryption is unavailable");
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("x25519");
+    const pairingId = `pair-${this.randomUUID()}`;
+    const code = String(this.randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, "0");
+    const nonce = b64(this.randomBytes(24));
+    const record = { pairingId, code, nonce, privateKey, publicKey, createdAt: this.now(), expiresAt: this.now() + MOBILE_PAIRING_TTL_MS };
+    this.invitations.set(pairingId, record);
+    this.#audit({ kind: "pairing", outcome: "invitation-created" });
+    this.#emitStatus();
+    return { pairingId, code, nonce, serverPublicKey: b64(publicKey.export({ format: "der", type: "spki" })), endpoints: this.status().endpoints.map(endpoint => `${endpoint}${MOBILE_PAIR_PATH}`), expiresAt: record.expiresAt, proof: "HMAC-SHA256(code, pairingId|nonce|deviceName|clientPublicKey)", exchange: "X25519 + HKDF-SHA256 + AES-256-GCM" };
+  }
+
+  currentInvitation() {
+    this.#expire();
+    const record = [...this.invitations.values()].sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (!record) throw new Error("Mobile pairing invitation is missing or expired");
+    return { pairingId: record.pairingId, nonce: record.nonce, serverPublicKey: b64(record.publicKey.export({ format: "der", type: "spki" })), expiresAt: record.expiresAt, proof: "HMAC-SHA256(code, pairingId|nonce|deviceName|clientPublicKey)", exchange: "X25519 + HKDF-SHA256 + AES-256-GCM" };
+  }
+
+  pair(value = {}) {
+    this.#expire();
+    const invitation = this.invitations.get(String(value.pairingId || ""));
+    if (!invitation) throw new Error("Mobile pairing invitation is missing or expired");
+    const deviceName = safeName(value.deviceName);
+    const clientPublicKey = String(value.clientPublicKey || "");
+    const expected = pairingProof(invitation.code, { pairingId: invitation.pairingId, nonce: invitation.nonce, deviceName, clientPublicKey });
+    if (!timingSafe(value.proof, expected)) throw new Error("Mobile pairing proof is invalid");
+    const clientKey = importClientKey(clientPublicKey);
+    const pairingKey = derivePairingKey(invitation.privateKey, clientKey, invitation.nonce);
+    const deviceId = `mobile-${this.randomUUID()}`;
+    const secret = b64(this.randomBytes(32));
+    const project = this.#projectIdentity();
+    const device = this.store.addDevice({ id: deviceId, name: deviceName, publicKey: clientPublicKey, scopes: this.store.status().scopes, projectKey: project.key, projectName: project.name }, secret);
+    this.invitations.delete(invitation.pairingId);
+    this.#audit({ kind: "pairing", outcome: "paired", deviceId });
+    this.#emitStatus();
+    return { pairingId: invitation.pairingId, serverPublicKey: b64(invitation.publicKey.export({ format: "der", type: "spki" })), envelope: encryptEnvelope(pairingKey, { deviceId, secret, scopes: device.scopes, apiVersion: MOBILE_API_VERSION, requestPath: MOBILE_REQUEST_PATH }, invitation.pairingId) };
+  }
+
+  listDevices() { return this.store.devices(); }
+  listApprovals() { this.#expire(); return this.store.approvals().sort((a, b) => b.createdAt - a.createdAt); }
+  listAudit(limit) { return this.store.listAudit(limit); }
+
+  revokeDevice(id) {
+    if (!this.store.revokeDevice(id)) throw new Error("Mobile device was not found or is already revoked");
+    const approvals = this.store.approvals().map(item => item.deviceId === id && item.state === "pending" ? { ...item, state: "revoked", resolvedAt: this.now() } : item);
+    this.store.setApprovals(approvals);
+    this.seenNonces.delete(String(id));
+    this.#audit({ kind: "device", outcome: "revoked", deviceId: id });
+    this.#emitStatus();
+    return { revoked: true, deviceId: String(id) };
+  }
+
+  openRequest(headers, envelope) {
+    const deviceId = String(headers.deviceId || "");
+    const timestamp = Number(headers.timestamp);
+    const requestNonce = String(headers.nonce || "");
+    if (!deviceId || !Number.isInteger(timestamp) || !requestNonce || requestNonce.length > 160) throw new Error("Mobile authentication headers are invalid");
+    if (Math.abs(this.now() - timestamp) > MOBILE_CLOCK_SKEW_MS) throw new Error("Mobile request timestamp is outside the allowed window");
+    this.#pruneNonces(deviceId);
+    const nonces = this.seenNonces.get(deviceId) || new Map();
+    if (nonces.has(requestNonce)) throw new Error("Mobile request replay was rejected");
+    const credential = this.store.deviceCredential(deviceId);
+    if (credential.device.projectKey !== this.#projectIdentity().key) throw new Error("Mobile device is paired to a different project");
+    const aad = [MOBILE_API_VERSION, MOBILE_REQUEST_PATH, deviceId, timestamp, requestNonce].join("|");
+    const payload = decryptEnvelope(envelopeKey(credential.secret), envelope, aad);
+    nonces.set(requestNonce, this.now()); this.seenNonces.set(deviceId, nonces); this.store.touchDevice(deviceId);
+    return { device: credential.device, secret: credential.secret, payload, aad };
+  }
+
+  sealResponse(opened, value) { return encryptEnvelope(envelopeKey(opened.secret), value, `${opened.aad}|response`); }
+
+  dispatch(device, payload = {}) {
+    const operation = String(payload.operation || "");
+    const scopes = device.scopes || [];
+    const requireScope = scope => { if (!this.store.status().scopes.includes(scope) || !scopes.includes(scope)) throw new Error(`Mobile permission required: ${scope}`); };
+    if (operation === "ping") return { ok: true, apiVersion: MOBILE_API_VERSION, at: this.now() };
+    if (["snapshot", "needs", "memory"].includes(operation)) {
+      if (operation === "snapshot") requireScope("summary.read");
+      if (operation === "needs") requireScope("needs.read");
+      if (operation === "memory") requireScope("memory.read");
+      const includeOutput = payload.includeTerminalEvidence === true;
+      if (includeOutput) requireScope("terminal.read");
+      const context = this.missionContext.snapshot({ afterSequence: Number.isInteger(payload.afterSequence) ? Math.max(0, payload.afterSequence) : 0, includeOutput, workerIds: Array.isArray(payload.workerIds) ? payload.workerIds.slice(0, 10) : [] });
+      let result;
+      if (operation === "needs") result = { generatedAt: context.generatedAt, attention: context.attention };
+      else if (operation === "memory") result = context.projectMemory;
+      else {
+        result = { contextVersion: context.contextVersion, generatedAt: context.generatedAt, project: context.project, overall: context.overall, visibility: context.visibility, privacy: context.privacy, sources: context.sources };
+        if (scopes.includes("workers.read") && this.store.status().scopes.includes("workers.read")) { result.workers = context.workers; result.missions = context.missions; result.recipes = context.recipes; }
+        if (scopes.includes("needs.read") && this.store.status().scopes.includes("needs.read")) result.attention = context.attention;
+        if (scopes.includes("memory.read") && this.store.status().scopes.includes("memory.read")) result.projectMemory = context.projectMemory;
+      }
+      this.#audit({ kind: "read", outcome: "completed", deviceId: device.id, capability: operation });
+      return result;
+    }
+    if (operation === "request-worker-action" || operation === "request-recipe-action") {
+      requireScope("actions.request");
+      return this.#createApproval(device, operation, payload);
+    }
+    throw new Error("Mobile operation is not supported");
+  }
+
+  async resolveApproval(id, decision) {
+    this.#expire();
+    const approvals = this.store.approvals();
+    const approval = approvals.find(item => item.id === String(id));
+    if (!approval) throw new Error("Mobile approval request was not found");
+    if (approval.state !== "pending") throw new Error(`Mobile approval is already ${approval.state}`);
+    if (!["approve", "deny"].includes(decision)) throw new Error("Mobile approval decision is invalid");
+    if (decision === "deny") { approval.state = "denied"; approval.resolvedAt = this.now(); this.store.setApprovals(approvals); this.#audit({ kind: "approval", outcome: "denied", deviceId: approval.deviceId, capability: approval.action, target: approval.target }); this.#emitStatus(); return clone(approval); }
+    const credential = this.store.deviceCredential(approval.deviceId);
+    if (credential.device.projectKey !== this.#projectIdentity().key || approval.projectKey !== credential.device.projectKey) throw new Error("Mobile approval belongs to a different project");
+    if (!credential.device.scopes.includes("actions.request") || !this.store.status().scopes.includes("actions.request")) throw new Error("Mobile action permission was revoked before approval");
+    approval.state = "executing"; approval.resolvedAt = this.now(); this.store.setApprovals(approvals); this.#emitStatus();
+    try { approval.result = await this.#executeApproval(approval); approval.state = "approved"; }
+    catch (error) { approval.state = "failed"; approval.error = error instanceof Error ? error.message : String(error); }
+    approval.completedAt = this.now(); this.store.setApprovals(approvals); this.#audit({ kind: "approval", outcome: approval.state, deviceId: approval.deviceId, capability: approval.action, target: approval.target }); this.#emitStatus();
+    return clone(approval);
+  }
+
+  async dispose() { if (this.disposed) return false; this.disposed = true; await this.stop(); this.removeAllListeners(); return true; }
+
+  #createApproval(device, operation, payload) {
+    const engine = this.getEngineApi();
+    let record;
+    if (operation === "request-worker-action") {
+      const target = String(payload.workerId || "").slice(0, 64); const action = String(payload.action || ""); const worker = engine.getSnapshot(target);
+      if (!worker) throw new Error("Mobile worker target was not found");
+      if (!["start", "restart", "stop", "acknowledge"].includes(action)) throw new Error("Mobile worker action is invalid");
+      record = { type: "worker", target, targetName: worker.name, action };
+    } else {
+      const target = String(payload.recipeId || "").slice(0, 64); const action = String(payload.action || ""); const recipe = engine.listRecipes().find(item => item.id === target);
+      if (!recipe) throw new Error("Mobile recipe target was not found");
+      if (!["run", "recover", "cancel"].includes(action)) throw new Error("Mobile recipe action is invalid");
+      record = { type: "recipe", target, targetName: recipe.name, action };
+    }
+    const approval = { id: `mobile-approval-${this.randomUUID()}`, state: "pending", deviceId: device.id, deviceName: device.name, projectKey: this.#projectIdentity().key, reason: safeReason(payload.reason), createdAt: this.now(), expiresAt: this.now() + MOBILE_APPROVAL_TTL_MS, ...record };
+    const approvals = [...this.store.approvals(), approval].slice(-100); this.store.setApprovals(approvals); this.#audit({ kind: "approval", outcome: "requested", deviceId: device.id, capability: approval.action, target: approval.target }); this.#emitStatus();
+    return clone(approval);
+  }
+
+  async #executeApproval(approval) {
+    const engine = this.getEngineApi(); let result;
+    if (approval.type === "worker") { const operation = approval.action === "stop" ? "kill" : approval.action; result = engine[operation](approval.target); if (result?.then) result = await result; }
+    else if (approval.action === "cancel") result = engine.cancelRecipe(approval.target);
+    else result = engine.runRecipe(approval.target, { recover: approval.action === "recover" });
+    if (!result?.ok) throw new Error(result?.error || "EngineAPI rejected the approved mobile action");
+    return clone(result);
+  }
+
+  #expire() {
+    const now = this.now();
+    for (const [id, invitation] of this.invitations) if (invitation.expiresAt <= now) this.invitations.delete(id);
+    const approvals = this.store.approvals(); let changed = false;
+    for (const approval of approvals) if (approval.state === "pending" && approval.expiresAt <= now) { approval.state = "expired"; approval.resolvedAt = now; changed = true; this.#audit({ kind: "approval", outcome: "expired", deviceId: approval.deviceId, capability: approval.action, target: approval.target }); }
+    if (changed) this.store.setApprovals(approvals);
+  }
+
+  #pruneNonces(deviceId) { const cutoff = this.now() - MOBILE_NONCE_TTL_MS; const values = this.seenNonces.get(deviceId); if (!values) return; for (const [nonce, at] of values) if (at < cutoff) values.delete(nonce); if (!values.size) this.seenNonces.delete(deviceId); }
+  #projectIdentity() { const workspace = this.getEngineApi()?.getWorkspace?.(); if (!workspace?.persistent) throw new Error("Mobile Companion requires a persistent project"); const source = workspace.path || workspace.directory || workspace.name; return { key: crypto.createHash("sha256").update(String(source)).digest("base64url"), name: String(workspace.name || "Project").slice(0, 120) }; }
+  #endpoints(port) { const values = []; for (const entries of Object.values(this.networkInterfaces() || {})) for (const item of entries || []) if (item && item.family === "IPv4" && !item.internal && !values.includes(item.address)) values.push(item.address); return values.slice(0, 8).map(address => `http://${address}:${port}`); }
+  #audit(record) { try { this.store.appendAudit({ ...record, id: `mobile-audit-${this.randomUUID()}`, at: this.now() }); } catch {} }
+  #emitStatus() { const status = this.status(); for (const listener of this.rawListeners("status")) try { listener(status); } catch {} }
+
+  async #handleHttp(request, response) {
+    const send = (status, value) => { if (response.writableEnded) return; const body = JSON.stringify(value); response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Length": Buffer.byteLength(body) }); response.end(body); };
+    if (request.method === "GET" && request.url === MOBILE_INVITE_PATH) {
+      try { return send(200, this.currentInvitation()); }
+      catch (error) { return send(404, { error: error instanceof Error ? error.message : String(error) }); }
+    }
+    if (request.method !== "POST" || ![MOBILE_PAIR_PATH, MOBILE_REQUEST_PATH].includes(request.url)) return send(404, { error: "Mobile endpoint not found" });
+    let bytes = 0; const chunks = [];
+    try {
+      for await (const chunk of request) { bytes += chunk.length; if (bytes > MAX_MOBILE_REQUEST_BYTES) throw new Error("Mobile request exceeds the 256 KiB limit"); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      if (request.url === MOBILE_PAIR_PATH) return send(200, this.pair(body));
+      const opened = this.openRequest({ deviceId: request.headers["x-mission-control-device"], timestamp: Number(request.headers["x-mission-control-time"]), nonce: request.headers["x-mission-control-nonce"] }, body);
+      const result = await this.dispatch(opened.device, opened.payload);
+      return send(200, this.sealResponse(opened, { ok: true, result }));
+    } catch (error) { return send(/authentication|credential|replay|timestamp|pairing proof/i.test(error.message) ? 401 : 400, { error: error instanceof Error ? error.message : String(error) }); }
+  }
+}
+
+module.exports = { MAX_MOBILE_REQUEST_BYTES, MOBILE_API_VERSION, MOBILE_APPROVAL_TTL_MS, MOBILE_CLOCK_SKEW_MS, MOBILE_INVITE_PATH, MOBILE_NONCE_TTL_MS, MOBILE_PAIRING_TTL_MS, MOBILE_PAIR_PATH, MOBILE_REQUEST_PATH, MobileCompanionGateway, decryptEnvelope, derivePairingKey, encryptEnvelope, envelopeKey, pairingMessage, pairingProof, timingSafe };

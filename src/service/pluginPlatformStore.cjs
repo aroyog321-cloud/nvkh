@@ -1,0 +1,236 @@
+"use strict";
+
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const PLUGIN_STORE_VERSION = 1;
+const MAX_PLUGIN_STORE_BYTES = 512 * 1024;
+const MAX_PLUGINS = 32;
+const MAX_PLUGIN_APPROVALS = 100;
+const MAX_PLUGIN_AUDIT = 200;
+const PLUGIN_PERMISSIONS = Object.freeze([
+  "context.read",
+  "memory.read",
+  "attention.read",
+  "events.read",
+  "health.read",
+  "worker.lifecycle.request",
+  "recipe.run.request"
+]);
+const PLUGIN_SURFACES = Object.freeze([
+  "settings.summary",
+  "needs.request",
+  "context.resource",
+  "health.status"
+]);
+const FORBIDDEN_MANIFEST_FIELDS = Object.freeze([
+  "main", "entry", "script", "scripts", "command", "commands", "environment",
+  "env", "filesystem", "network", "process", "terminal", "secrets", "url"
+]);
+
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function isPlainObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function cleanText(value, name, maximum, fallback = "") {
+  const text = String(value ?? fallback).replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (!text && !fallback) throw new TypeError(`Plugin ${name} is required`);
+  return (text || fallback).slice(0, maximum);
+}
+function normalizeList(value, allowed, name, maximum) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some(item => typeof item !== "string")) throw new TypeError(`Plugin ${name} must be an array of strings`);
+  const unknown = value.find(item => !allowed.includes(item));
+  if (unknown) throw new TypeError(`Unsupported plugin ${name.slice(0, -1)}: ${unknown}`);
+  return allowed.filter(item => value.includes(item)).slice(0, maximum);
+}
+
+function normalizeAction(value) {
+  if (!isPlainObject(value)) throw new TypeError("Plugin actions must be objects");
+  const id = cleanText(value.id, "action id", 64);
+  if (!/^[a-z][a-z0-9.-]*$/.test(id)) throw new TypeError("Plugin action id must use lowercase letters, numbers, dots, or hyphens");
+  const type = value.type === "worker" ? "worker" : value.type === "recipe" ? "recipe" : null;
+  if (!type) throw new TypeError("Plugin action type must be worker or recipe");
+  const allowed = type === "worker" ? ["start", "restart", "stop", "acknowledge"] : ["run", "recover", "cancel"];
+  const operations = normalizeList(value.operations, allowed, "action operations", allowed.length);
+  if (!operations.length) throw new TypeError("Plugin action requires at least one allow-listed operation");
+  return { id, label: cleanText(value.label, "action label", 80), type, operations };
+}
+
+function normalizeManifest(value) {
+  if (!isPlainObject(value)) throw new TypeError("Plugin manifest must be an object");
+  const forbidden = FORBIDDEN_MANIFEST_FIELDS.find(field => Object.hasOwn(value, field));
+  if (forbidden) throw new TypeError(`Executable or privileged plugin field is not allowed: ${forbidden}`);
+  const supported = ["manifestVersion", "id", "name", "version", "publisher", "description", "permissions", "surfaces", "actions"];
+  const unknown = Object.keys(value).find(field => !supported.includes(field));
+  if (unknown) throw new TypeError(`Unsupported plugin manifest field: ${unknown}`);
+  if (value.manifestVersion !== 1) throw new TypeError("Plugin manifestVersion must be 1");
+  const id = cleanText(value.id, "id", 96);
+  if (!/^[a-z][a-z0-9.-]{2,95}$/.test(id)) throw new TypeError("Plugin id must be a stable lowercase dotted identifier");
+  const version = cleanText(value.version, "version", 32);
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new TypeError("Plugin version must use semantic versioning");
+  const actions = value.actions === undefined ? [] : value.actions;
+  if (!Array.isArray(actions) || actions.length > 20) throw new TypeError("Plugin actions must contain at most 20 entries");
+  const normalizedActions = actions.map(normalizeAction);
+  if (new Set(normalizedActions.map(item => item.id)).size !== normalizedActions.length) throw new TypeError("Plugin action ids must be unique");
+  const permissions = normalizeList(value.permissions, PLUGIN_PERMISSIONS, "permissions", PLUGIN_PERMISSIONS.length);
+  for (const action of normalizedActions) {
+    const permission = action.type === "worker" ? "worker.lifecycle.request" : "recipe.run.request";
+    if (!permissions.includes(permission)) throw new TypeError(`Plugin action ${action.id} requires ${permission}`);
+  }
+  return {
+    manifestVersion: 1,
+    id,
+    name: cleanText(value.name, "name", 80),
+    version,
+    publisher: cleanText(value.publisher, "publisher", 80, "Unknown publisher"),
+    description: cleanText(value.description, "description", 300, "No description provided"),
+    permissions,
+    surfaces: normalizeList(value.surfaces, PLUGIN_SURFACES, "surfaces", PLUGIN_SURFACES.length),
+    actions: normalizedActions
+  };
+}
+
+class PluginPlatformStore {
+  constructor(filePath, options = {}) {
+    if (typeof filePath !== "string" || !filePath) throw new TypeError("Plugin platform store path is required");
+    this.filePath = path.resolve(filePath);
+    this.fs = options.fs || fs;
+    this.now = options.now || Date.now;
+    this.randomUUID = options.randomUUID || crypto.randomUUID;
+  }
+
+  status() {
+    const value = this.#read();
+    return {
+      available: true,
+      pluginCount: value.plugins.length,
+      enabledCount: value.plugins.filter(item => item.enabled).length,
+      pendingApprovalCount: value.approvals.filter(item => item.state === "pending").length,
+      auditCount: value.audit.length,
+      updatedAt: value.updatedAt,
+      isolation: "declarative-no-code-execution"
+    };
+  }
+
+  plugins() { return this.#read().plugins.map(clone); }
+  approvals() { return this.#read().approvals.map(clone); }
+  audit(limit = 50) { const count = Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 50; return this.#read().audit.slice(-count).reverse().map(clone); }
+
+  install(manifest, source = "local-manifest") {
+    const normalized = normalizeManifest(manifest);
+    const value = this.#read();
+    const index = value.plugins.findIndex(item => item.manifest.id === normalized.id);
+    const previous = index >= 0 ? value.plugins[index] : null;
+    const record = {
+      manifest: normalized,
+      enabled: previous?.enabled === true,
+      grantedPermissions: normalized.permissions.filter(permission => previous?.grantedPermissions?.includes(permission)),
+      installedAt: previous?.installedAt || this.now(),
+      updatedAt: this.now(),
+      source: cleanText(source, "source", 120, "local-manifest")
+    };
+    if (index >= 0) value.plugins[index] = record;
+    else {
+      if (value.plugins.length >= MAX_PLUGINS) throw new Error(`Plugin platform supports at most ${MAX_PLUGINS} installed manifests`);
+      value.plugins.push(record);
+    }
+    this.#write({ ...value, plugins: value.plugins, updatedAt: this.now() });
+    return clone(record);
+  }
+
+  configure(id, configuration = {}) {
+    if (!isPlainObject(configuration)) throw new TypeError("Plugin configuration must be an object");
+    const unsupported = Object.keys(configuration).find(key => !["enabled", "grantedPermissions"].includes(key));
+    if (unsupported) throw new TypeError(`Unsupported plugin configuration field: ${unsupported}`);
+    const value = this.#read();
+    const plugin = value.plugins.find(item => item.manifest.id === String(id));
+    if (!plugin) throw new Error("Plugin is not installed");
+    if (configuration.grantedPermissions !== undefined) {
+      if (!Array.isArray(configuration.grantedPermissions) || configuration.grantedPermissions.some(item => typeof item !== "string")) throw new TypeError("Plugin grants must be an array of strings");
+      const unsupportedGrant = configuration.grantedPermissions.find(permission => !plugin.manifest.permissions.includes(permission));
+      if (unsupportedGrant) throw new TypeError(`Plugin did not declare permission: ${unsupportedGrant}`);
+      plugin.grantedPermissions = plugin.manifest.permissions.filter(permission => configuration.grantedPermissions.includes(permission));
+    }
+    if (configuration.enabled !== undefined) plugin.enabled = configuration.enabled === true;
+    plugin.updatedAt = this.now();
+    this.#write({ ...value, updatedAt: this.now() });
+    return clone(plugin);
+  }
+
+  uninstall(id) {
+    const value = this.#read();
+    const before = value.plugins.length;
+    value.plugins = value.plugins.filter(item => item.manifest.id !== String(id));
+    if (value.plugins.length === before) throw new Error("Plugin is not installed");
+    value.approvals = value.approvals.map(item => item.pluginId === String(id) && item.state === "pending" ? { ...item, state: "revoked", resolvedAt: this.now() } : item);
+    this.#write({ ...value, updatedAt: this.now() });
+    return true;
+  }
+
+  setApprovals(approvals) {
+    if (!Array.isArray(approvals)) throw new TypeError("Plugin approvals must be an array");
+    const value = this.#read();
+    value.approvals = approvals.filter(isPlainObject).slice(-MAX_PLUGIN_APPROVALS).map(clone);
+    this.#write({ ...value, updatedAt: this.now() });
+  }
+
+  appendAudit(record) {
+    const value = this.#read();
+    const clean = {
+      id: cleanText(record?.id, "audit id", 160, `plugin-audit-${this.randomUUID()}`),
+      at: Number.isInteger(record?.at) ? record.at : this.now(),
+      kind: cleanText(record?.kind, "audit kind", 64, "platform"),
+      outcome: cleanText(record?.outcome, "audit outcome", 64, "recorded"),
+      pluginId: record?.pluginId ? cleanText(record.pluginId, "plugin id", 96) : null,
+      capability: record?.capability ? cleanText(record.capability, "capability", 120) : null,
+      target: record?.target ? cleanText(record.target, "target", 120) : null
+    };
+    value.audit = [...value.audit, clean].slice(-MAX_PLUGIN_AUDIT);
+    this.#write({ ...value, updatedAt: this.now() });
+    return clone(clean);
+  }
+
+  #read() {
+    let raw;
+    try { raw = this.fs.readFileSync(this.filePath); }
+    catch (error) {
+      if (error?.code === "ENOENT") return { version: PLUGIN_STORE_VERSION, plugins: [], approvals: [], audit: [], updatedAt: null };
+      throw error;
+    }
+    if (!Buffer.isBuffer(raw)) raw = Buffer.from(raw);
+    if (raw.length > MAX_PLUGIN_STORE_BYTES) throw new Error("Plugin platform store exceeds its safety limit");
+    let value;
+    try { value = JSON.parse(raw.toString("utf8")); } catch { throw new Error("Plugin platform store is invalid"); }
+    if (!isPlainObject(value) || value.version !== PLUGIN_STORE_VERSION) throw new Error("Plugin platform store version is unsupported");
+    const plugins = [];
+    for (const item of Array.isArray(value.plugins) ? value.plugins.slice(-MAX_PLUGINS) : []) {
+      try {
+        const manifest = normalizeManifest(item.manifest);
+        plugins.push({ manifest, enabled: item.enabled === true, grantedPermissions: manifest.permissions.filter(permission => item.grantedPermissions?.includes(permission)), installedAt: Number.isInteger(item.installedAt) ? item.installedAt : null, updatedAt: Number.isInteger(item.updatedAt) ? item.updatedAt : null, source: cleanText(item.source, "source", 120, "local-manifest") });
+      } catch { /* A corrupt plugin cannot block the rest of Mission Control. */ }
+    }
+    return { version: PLUGIN_STORE_VERSION, plugins, approvals: Array.isArray(value.approvals) ? value.approvals.filter(isPlainObject).slice(-MAX_PLUGIN_APPROVALS).map(clone) : [], audit: Array.isArray(value.audit) ? value.audit.filter(isPlainObject).slice(-MAX_PLUGIN_AUDIT).map(clone) : [], updatedAt: Number.isInteger(value.updatedAt) ? value.updatedAt : null };
+  }
+
+  #write(value) {
+    const directory = path.dirname(this.filePath);
+    this.fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const temporary = `${this.filePath}.${process.pid}.${this.now()}.tmp`;
+    const encoded = `${JSON.stringify(value, null, 2)}\n`;
+    if (Buffer.byteLength(encoded) > MAX_PLUGIN_STORE_BYTES) throw new Error("Plugin platform store exceeds its safety limit");
+    try {
+      this.fs.writeFileSync(temporary, encoded, { encoding: "utf8", mode: 0o600, flag: "wx" });
+      this.fs.renameSync(temporary, this.filePath);
+      try { this.fs.chmodSync(this.filePath, 0o600); } catch {}
+    } catch (error) {
+      try { this.fs.unlinkSync(temporary); } catch {}
+      throw error;
+    }
+  }
+}
+
+module.exports = { FORBIDDEN_MANIFEST_FIELDS, MAX_PLUGIN_APPROVALS, MAX_PLUGIN_AUDIT, MAX_PLUGIN_STORE_BYTES, MAX_PLUGINS, PLUGIN_PERMISSIONS, PLUGIN_STORE_VERSION, PLUGIN_SURFACES, PluginPlatformStore, normalizeManifest };

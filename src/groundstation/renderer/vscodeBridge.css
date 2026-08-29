@@ -1,0 +1,350 @@
+.vscode-bridge-settings {
+  width: min(1120px, 100%);
+  margin-inline: auto;
+  padding: 18px;
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--line) 82%, #70a7ff 18%);
+}
+
+.vscode-bridge-settings > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.vscode-bridge-settings .settings-panel__head { margin: 0; }
+
+.vscode-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #9cc1ff;
+  background: #101927;
+  border: 1px solid #263a58;
+  border-radius: 8px;
+  font: 700 18px "SFMono-Regular", Consolas, monospace;
+}
+
+.vscode-connection {
+  display: flex;
+  min-width: 150px;
+  align-items: center;
+  gap: 9px;
+}
+
+.vscode-connection > i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: var(--dim);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--dim) 10%, transparent);
+}
+
+.vscode-connection.is-waiting > i { background: var(--amber); }
+.vscode-connection.is-live > i { background: #77e1b3; }
+
+.vscode-connection > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vscode-connection small {
+  color: var(--dim);
+  font-size: 7px;
+  font-weight: 680;
+  letter-spacing: .08em;
+}
+
+.vscode-connection strong {
+  font-size: 9px;
+  font-weight: 570;
+}
+
+.vscode-bridge-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 15px;
+  padding: 15px 0;
+}
+
+.vscode-sync-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  background: #0b0f14;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.vscode-sync-summary > div {
+  display: flex;
+  min-width: 0;
+  min-height: 70px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 11px 13px;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+
+.vscode-sync-summary > div:nth-child(odd) { border-left: 0; }
+.vscode-sync-summary > div:nth-child(-n+2) { border-top: 0; }
+
+.vscode-sync-summary span,
+.vscode-bridge-body > aside > span {
+  color: #739ddc;
+  font-size: 7px;
+  font-weight: 720;
+  letter-spacing: .09em;
+}
+
+.vscode-sync-summary strong {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vscode-sync-summary small {
+  color: var(--dim);
+  font-size: 8px;
+}
+
+.vscode-sync-summary .has-risk strong { color: #efaaa4; }
+
+.vscode-bridge-body > aside {
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--surface-2) 88%, #13223a 12%);
+  border-left: 2px solid #385b8d;
+  border-radius: 0 8px 8px 0;
+}
+
+.vscode-bridge-body ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vscode-bridge-body li {
+  position: relative;
+  padding-left: 11px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.vscode-bridge-body li::before {
+  position: absolute;
+  top: .45em;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  background: #77e1b3;
+  border-radius: 50%;
+  content: "";
+}
+
+.vscode-bridge-body > aside > small {
+  color: var(--dim);
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.vscode-bridge-settings > p {
+  margin: -2px 0 12px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-left: 2px solid #739ddc;
+  font-size: 8px;
+}
+
+.vscode-bridge-settings > p.is-error { color: #efaaa4; border-left-color: var(--red); }
+
+.vscode-terminal-control {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: #0b0f14;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.vscode-terminal-create {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(130px, .55fr) minmax(130px, .55fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--line);
+}
+
+.vscode-terminal-create > div,
+.vscode-terminal-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vscode-terminal-create span,
+.vscode-terminal-owner {
+  color: #739ddc;
+  font-size: 7px;
+  font-weight: 720;
+  letter-spacing: .09em;
+}
+
+.vscode-terminal-create small,
+.vscode-terminal-main small,
+.vscode-terminal-empty small {
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 8px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vscode-terminal-control input {
+  min-width: 0;
+  height: 31px;
+  padding: 0 9px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: none;
+  font: 500 8px "SFMono-Regular", Consolas, monospace;
+}
+
+.vscode-terminal-control input:focus { border-color: #5484c7; box-shadow: 0 0 0 2px #5484c720; }
+
+.vscode-terminal-list { display: grid; gap: 7px; }
+
+.vscode-terminal-list article {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 9px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 2px solid #495564;
+  border-radius: 7px;
+}
+
+.vscode-terminal-list article.is-managed { border-left-color: #77e1b3; }
+.vscode-terminal-list article.is-managed .vscode-terminal-owner { color: #77e1b3; }
+.vscode-terminal-main strong { font-size: 10px; font-weight: 600; }
+
+.vscode-terminal-state {
+  color: var(--dim);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.vscode-terminal-state.is-running { color: #8bb8ff; }
+.vscode-terminal-state.is-succeeded { color: #77e1b3; }
+.vscode-terminal-state.is-failed { color: #efaaa4; }
+
+.vscode-terminal-actions {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(160px, 1fr) auto auto;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.vscode-terminal-empty {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.vscode-bridge-settings > footer {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.vscode-bridge-settings > footer > span {
+  color: var(--dim);
+  font-size: 8px;
+}
+
+.vscode-bridge-settings > footer > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vscode-bridge-settings button {
+  min-height: 31px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 8px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.vscode-bridge-settings button:hover:not(:disabled),
+.vscode-bridge-settings button:focus-visible { color: var(--text); border-color: #385b8d; }
+.vscode-bridge-settings button:disabled { opacity: .45; cursor: default; }
+
+.vscode-bridge-settings .vscode-connect {
+  color: #0a1422;
+  background: #8bb8ff;
+  border-color: transparent;
+}
+
+.vscode-bridge-settings .vscode-disconnect { color: #efaaa4; }
+
+@media (max-width: 860px) {
+  .vscode-bridge-body { grid-template-columns: 1fr; }
+  .vscode-terminal-create { grid-template-columns: 1fr 1fr; }
+  .vscode-bridge-settings > footer { align-items: flex-start; flex-direction: column; }
+  .vscode-bridge-settings > footer > div { width: 100%; flex-wrap: wrap; }
+}
+
+@media (max-width: 620px) {
+  .vscode-bridge-settings > header { align-items: flex-start; flex-direction: column; }
+  .vscode-sync-summary { grid-template-columns: 1fr; }
+  .vscode-sync-summary > div { border-top: 1px solid var(--line); border-left: 0; }
+  .vscode-sync-summary > div:nth-child(2) { border-top: 1px solid var(--line); }
+  .vscode-sync-summary > div:first-child { border-top: 0; }
+  .vscode-terminal-create,
+  .vscode-terminal-actions { grid-template-columns: 1fr; }
+  .vscode-terminal-list article { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vscode-bridge-settings * { transition: none !important; }
+}
