@@ -512,6 +512,14 @@
     padding-bottom: 2px;
   }
   #root#root .shell .layout-switcher { max-width: 100%; overflow-x: auto; }
+}
+
+/* The toolbar has to stack well before the canvas does. Collapsing a chosen
+   2x2 or 3x2 canvas to a single column at 900px threw away the operator's
+   layout on an ordinary 1024px window, where two ~390px panes still show a
+   usable ~45 columns each. Below 680px the panes really are too narrow to
+   read, so the single column stays the floor. */
+@container workspace-stage (max-width: 680px) {
   .shell .view-workspace .terminal-grid:not(.has-expanded) {
     grid-template-columns: minmax(0, 1fr) !important;
     grid-template-rows: none !important;

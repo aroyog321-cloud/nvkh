@@ -35,25 +35,40 @@ Command.List = CmdkCommand.List;
 Command.Empty = CmdkCommand.Empty;
 Command.Item = CmdkCommand.Item;
 
+// The operator's home destinations, in scan order: status, work, blockers,
+// crew, launch, record, configuration. Recipes earns a slot back because
+// launching a saved workspace is a daily verb, not a buried dialog.
+//
+// Integrations trails the primary seven as a contextual eighth. Every
+// connected bridge (Mission AI, VS Code, MCP, Automation, Mobile, Plugins)
+// lives there, so it must stay one click away rather than hide inside
+// Settings, but it is a place you configure, not a place you operate from.
+// AppSidebar renders it below a divider so the seven stay legible as a group.
 const NAVIGATION = [
   ["groundstation", "Groundstation", "pulse"],
   ["workspace", "Workspace", "terminal"],
   ["needs", "Needs You", "attention"],
   ["agents", "Agents", "agents"],
-  ["history", "History", "history"],
-  ["integrations", "Integrations", "expand"],
-  ["settings", "Settings", "settings"]
-];
-
-// Recipes is a thing you launch, not a place you live in, so it no longer
-// holds a primary sidebar slot. Every route into it survives: Alt R, the
-// command palette entry below, the Workspace toolbar and the Groundstation
-// launcher all still open it.
-const SECONDARY_DESTINATIONS = [
   ["recipes", "Recipes", "grid"],
+  ["history", "History", "history"],
+  ["settings", "Settings", "settings"],
+  ["integrations", "Integrations", "expand"]
+];
+const PRIMARY_NAV_COUNT = 7;
+
+const SECONDARY_DESTINATIONS = [
   ["projects", "Switch project", "projects"]
 ];
 const NAV_SHORTCUTS = { groundstation: "Alt G", workspace: "Alt W", recipes: "Alt R", needs: "Alt N", agents: "Alt A", integrations: "Alt I", history: "Alt H", settings: "Alt S" };
+// Palette synonyms live beside the destinations they belong to so moving a
+// route between the primary and secondary lists cannot silently drop them.
+const NAV_ALIASES = {
+  needs: ["attention","approvals","failures"],
+  history: ["activity","events","memory","logs"],
+  integrations: ["mission ai","mcp","vscode","mobile","plugins","bridges"],
+  recipes: ["recipe","daily workspace","startup","launch","stack"],
+  projects: ["workspace","switch"]
+};
 const HISTORY_CURSOR_KEY = "mission-control.history-cursor.v1";
 const COMMAND_RECENTS_KEY = "mission-control.command-recents.v1";
 const DECISION_STATE_KEY = "mission-control.decision-queue.v1";
@@ -1316,10 +1331,16 @@ function SettingsHub({ state, workspace, recovery, preferences, onPreference, on
 
 function AppSidebar({ view, workspace, pendingCount, onNavigate, onProject, onPalette, onMissionAI }) {
   const projectMark = String(workspace?.name || "P").trim().slice(0, 2).toUpperCase();
+  const renderNavButton = ([id, label, icon]) => <button key={id} data-tooltip={`${label} · ${NAV_SHORTCUTS[id] || "Open"}`} aria-label={label} aria-current={view === id ? "page" : undefined} className={view === id ? "is-current" : ""} onClick={() => onNavigate(id)} title={`${label} · ${NAV_SHORTCUTS[id]}`}><Icon name={icon} size={17}/><span>{label}</span>{id === "needs" && pendingCount > 0 && <b aria-label={`${pendingCount} items need attention`}>{pendingCount}</b>}</button>;
   return <aside className="app-sidebar" aria-label="Application sidebar">
     <div className="app-sidebar__brand"><button className="top-brand" onClick={() => onNavigate("groundstation")} aria-label="Open Groundstation"><span>MC</span></button><div><strong>Mission Control</strong><small>Developer cockpit</small></div></div>
     <button className="top-project" data-tooltip={`Switch project · ${workspace?.name || "none"}`} onClick={onProject} aria-label={`Switch project. Current project: ${workspace?.name || "none"}`}><span className="top-project__mark" aria-hidden="true">{projectMark}</span><div><small>Project:</small><strong>{workspace?.name || "Choose project"}</strong></div><i aria-hidden="true">⌄</i></button>
-    <nav className="top-navigation" aria-label="Mission Control navigation">{NAVIGATION.map(([id, label, icon]) => <button key={id} data-tooltip={`${label} · ${NAV_SHORTCUTS[id] || "Open"}`} aria-label={label} aria-current={view === id ? "page" : undefined} className={view === id ? "is-current" : ""} onClick={() => onNavigate(id)} title={`${label} · ${NAV_SHORTCUTS[id]}`}><Icon name={icon} size={17}/><span>{label}</span>{id === "needs" && pendingCount > 0 && <b aria-label={`${pendingCount} items need attention`}>{pendingCount}</b>}</button>)}</nav>
+    <nav className="top-navigation" aria-label="Mission Control navigation">
+      {NAVIGATION.slice(0, PRIMARY_NAV_COUNT).map(destination => renderNavButton(destination))}
+      <div className="top-navigation__contextual" role="group" aria-label="Configuration">
+        {NAVIGATION.slice(PRIMARY_NAV_COUNT).map(destination => renderNavButton(destination))}
+      </div>
+    </nav>
     <div className="app-sidebar__footer"><button className="top-search" data-tooltip="Mission Command · Ctrl K" onClick={onPalette} aria-label="Search or run a command"><Icon name="search" size={16}/><span>Search commands</span><kbd>Ctrl+K</kbd></button><button className={`top-ai ${view === "mission-ai" ? "is-current" : ""}`} data-tooltip="Mission AI" onClick={onMissionAI} aria-label="Open Mission AI"><span>AI</span><strong>Mission AI</strong></button><span className="app-sidebar__rail-label" aria-hidden="true">MISSION CONTROL</span></div>
   </aside>;
 }
@@ -1567,8 +1588,8 @@ export default function App() {
   }, [refresh]);
 
   const paletteItems = React.useMemo(() => [
-    ...NAVIGATION.map(([id,label,icon]) => ({ id: `nav-${id}`, label, group: "Navigate", icon, aliases: id === "needs" ? ["attention","approvals","failures"] : id === "history" ? ["activity","events","memory","logs"] : id === "integrations" ? ["mission ai","mcp","vscode","mobile","plugins"] : [], run: () => { if (id === "integrations") setIntegrationSection("overview"); setView(id); } })),
-    ...SECONDARY_DESTINATIONS.map(([id,label,icon]) => ({ id: `nav-${id}`, label, group: "Application", icon, aliases: id === "recipes" ? ["recipe","daily workspace","startup","launch","stack"] : ["workspace","switch"], run: () => setView(id) })),
+    ...NAVIGATION.map(([id,label,icon]) => ({ id: `nav-${id}`, label, group: "Navigate", icon, aliases: NAV_ALIASES[id] || [], run: () => { if (id === "integrations") setIntegrationSection("overview"); setView(id); } })),
+    ...SECONDARY_DESTINATIONS.map(([id,label,icon]) => ({ id: `nav-${id}`, label, group: "Application", icon, aliases: NAV_ALIASES[id] || [], run: () => setView(id) })),
     ...(selectedSession ? [{ id: "context-open", label: selectedSession.id.startsWith("agent-") ? `Review ${selectedSession.name}` : `Inspect ${selectedSession.name}`, group: "Selected worker", icon: selectedSession.id.startsWith("agent-") ? "agents" : "terminal", aliases: ["focus","quick look","details","history","summary"], run: () => inspectWorker(selectedSession.id) }] : []),
     ...(selectedSession?.attentionRequired ? [{ id: "context-acknowledge", label: `Acknowledge ${selectedSession.name} alert`, group: "Selected worker", icon: "attention", run: () => dispatch("acknowledge", selectedSession.id) }] : []),
     { id: "new-worker", label: "Add a new worker", group: "Action", icon: "plus", shortcut: "N", run: () => setWorkerDialog({ mode: "create" }) },

@@ -28,6 +28,9 @@ import "./redesign/base.css";
 import "./redesign/surfaces.css";
 import "./redesign/workspace.css";
 import "./redesign/screens.css";
+// Density pass: page headers, meter strips, accent discipline, deck + pane
+// header overflow, empty states. See redesign/README.md.
+import "./redesign/cockpit.css";
 
 document.documentElement.lang = navigator.language || "en";
 

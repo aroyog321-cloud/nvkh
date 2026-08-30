@@ -1,0 +1,1793 @@
+/* ===========================================================================
+   Mission Control — cockpit density layer
+
+   The redesign files before this one settled *geometry*: one shell grid, one
+   token system, one terminal canvas. What they left untouched is the reading
+   grammar inside each route, and that is where the product still read as a
+   marketing dashboard rather than an operations cockpit:
+
+     - every route opened with an eyebrow, a 22–30px headline and an
+       explanatory paragraph — 120–190px of chrome before the first fact;
+     - four screens repeated the same 3/4-up giant-numeral stat block, which
+       carries less information per pixel than one line of text;
+     - `premiumV3.css` still forces a green gradient onto the brand mark, so
+       the shell shipped three competing accents;
+     - the Workspace deck and the terminal pane header truncated every item
+       equally, so a worker's name died alongside a decorative badge;
+     - `.integration-directory` had no rule for its header in any *imported*
+       stylesheet, so it rendered "CAPABILITY DIRECTORYConnections and
+       extensions" as one run-on string.
+
+   This layer loads last and owns that grammar. It changes presentation only:
+   no route, IPC call, confirmation gate or engine contract is touched, and
+   nothing is removed from the DOM — text that stops being *drawn* stays
+   readable to assistive technology.
+   ======================================================================== */
+
+/* ==========================================================================
+   1 · Sidebar — the primary seven, then a contextual group
+   ========================================================================== */
+
+/* Groundstation, Workspace, Needs You, Agents, Recipes, History, Settings are
+   the operator's home destinations. Integrations trails them behind a rule:
+   reachable in one click, but visibly not part of the daily scan. */
+#root#root .shell .top-navigation__contextual {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--mc-border);
+}
+
+/* The active marker is drawn at `left: -10px` relative to each button, so the
+   nested group must not clip it. */
+#root#root .shell .top-navigation__contextual { overflow: visible; }
+
+#root#root .shell .top-navigation__contextual button {
+  color: var(--mc-text-dim) !important;
+}
+#root#root .shell .top-navigation__contextual button:hover,
+#root#root .shell .top-navigation__contextual button.is-current {
+  color: var(--mc-text) !important;
+}
+
+/* The sidebar gradient was the last decorative wash in the shell. */
+#root#root .shell > .app-sidebar {
+  background: var(--mc-void) !important;
+}
+
+/* ==========================================================================
+   2 · Page header — one row, not a hero slab
+   ========================================================================== */
+
+/* Every screen ships the same shape: a `<header>` holding an optional kicker,
+   a heading, a description, and sometimes a metric block. Collapsing that to
+   a single baseline-aligned row recovers ~140px of first-screen space on
+   eight routes without deleting a single word. */
+
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--mc-space-3);
+  row-gap: var(--mc-space-1);
+  min-height: 40px;
+  padding: var(--mc-space-2) 0 var(--mc-space-3) !important;
+  margin: 0 0 var(--mc-space-4) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* The copy column grows so any metric block is pushed to the trailing edge. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) > div:first-child {
+  display: flex;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+  row-gap: 2px;
+  margin: 0;
+}
+
+/* Heading: a name, at reading size. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) :is(h1, h2) {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  color: var(--mc-text) !important;
+  font-size: 15px !important;
+  font-weight: 640 !important;
+  letter-spacing: -.012em !important;
+  line-height: 1.3 !important;
+}
+
+/* ---------------------------------------------------------- heading scale
+
+   Below the page header the renderer still ran three heading sizes from
+   three eras — 25px section titles in uiFoundation, a 21px clamp in the base
+   layer, 15px panel heads in premiumV3. One scale: page 15, section 13.5,
+   panel 12.5. Every heading stays a heading; none of them shouts. */
+#root#root .shell .experience h2 {
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: -.01em;
+}
+#root#root .shell .experience h3 {
+  font-size: 12.5px;
+  font-weight: 620;
+  letter-spacing: -.005em;
+}
+/* The Agents inspector titles the selected agent; it is a subject line, not a
+   billboard. */
+#root#root .shell .experience .agent-detail-title h1 {
+  margin: 0 !important;
+  font-size: 15px !important;
+  font-weight: 640 !important;
+  letter-spacing: -.012em !important;
+}
+#root#root .shell .experience .agent-status-brief h2 {
+  margin: 0 0 var(--mc-space-1) !important;
+  font-size: 13.5px !important;
+}
+
+/* The kicker names the route, which the sidebar already does. It stays in the
+   document for assistive technology and becomes a quiet prefix rather than a
+   stacked label. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) > .section-kicker,
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) > div:first-child > .section-kicker {
+  flex: 0 0 auto;
+  order: -1;
+  padding-right: var(--mc-space-2);
+  border-right: 1px solid var(--mc-hairline);
+  color: var(--mc-text-dim) !important;
+  font: 650 9.5px/1.4 var(--mc-font-mono) !important;
+  letter-spacing: .1em !important;
+}
+
+/* The description is real context, so it is kept — demoted to one muted line
+   that yields first when the row runs out of room. `title` is not available
+   here, but the text is never clipped below 320px of runway. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) p {
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: none !important;
+  margin: 0;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Below ~900px of content width the description takes its own line rather
+   than shrinking the heading. */
+@container groundstation (max-width: 900px) {
+  #root#root .shell .experience :is(
+    .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+    .agents-hero, .history-hero, .needs-hero, .settings-hub__header
+  ) p { flex-basis: 100%; }
+}
+
+/* ==========================================================================
+   3 · Meter strip — statistics as a register, not a billboard
+   ========================================================================== */
+
+/* Same markup everywhere: a row of `<span>`/`<div>` each holding a `<small>`
+   label and a `<strong>` value, in either order. `order` normalises them to
+   LABEL then VALUE so four screens finally agree. */
+
+#root#root .shell .experience :is(
+  .agent-overview, .integration-score, .history-snapshot,
+  .agent-workforce-counts, .integration-stat-row, .groundstation-hero__metrics
+) {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0 !important;
+  overflow: hidden;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+#root#root .shell .experience :is(
+  .agent-overview, .integration-score, .history-snapshot,
+  .agent-workforce-counts, .integration-stat-row, .groundstation-hero__metrics
+) > * {
+  display: flex !important;
+  min-width: 0;
+  min-height: 30px;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-1) var(--mc-space-3) !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 1px solid var(--mc-hairline) !important;
+  border-radius: 0 !important;
+}
+#root#root .shell .experience :is(
+  .agent-overview, .integration-score, .history-snapshot,
+  .agent-workforce-counts, .integration-stat-row, .groundstation-hero__metrics
+) > *:first-child { border-left: 0 !important; }
+
+#root#root .shell .experience :is(
+  .agent-overview, .integration-score, .history-snapshot,
+  .agent-workforce-counts, .integration-stat-row, .groundstation-hero__metrics
+) > * > small {
+  order: 0;
+  flex: 0 0 auto;
+  color: var(--mc-text-dim) !important;
+  font-size: 9px !important;
+  font-weight: 650 !important;
+  letter-spacing: .09em !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+#root#root .shell .experience :is(
+  .agent-overview, .integration-score, .history-snapshot,
+  .agent-workforce-counts, .integration-stat-row, .groundstation-hero__metrics
+) > * > strong {
+  order: 1;
+  flex: 0 0 auto;
+  color: var(--mc-text) !important;
+  font-size: 13px !important;
+  font-weight: 660 !important;
+  letter-spacing: -.01em !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2 !important;
+}
+
+/* A count only earns colour when it is a state the operator must act on. */
+#root#root .shell .experience :is(.agent-overview, .agent-workforce-counts) > .has-risk > strong,
+#root#root .shell .experience .integration-stat-row .tone-waiting { color: var(--mc-warning) !important; }
+#root#root .shell .experience .integration-stat-row .tone-ready { color: var(--mc-ok) !important; }
+
+/* The Agents inspector repeated the pattern with a caption line. Keep the
+   caption, lose the billboard. */
+#root#root .shell .experience .agent-summary-metrics {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0 !important;
+  overflow: hidden;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .experience .agent-summary-metrics > div {
+  display: grid !important;
+  align-content: start;
+  gap: 1px !important;
+  min-width: 0;
+  padding: var(--mc-space-2) var(--mc-space-3) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 1px solid var(--mc-hairline) !important;
+  border-radius: 0 !important;
+}
+#root#root .shell .experience .agent-summary-metrics > div:first-child { border-left: 0 !important; }
+#root#root .shell .experience .agent-summary-metrics small {
+  color: var(--mc-text-dim) !important;
+  font-size: 9px !important;
+  font-weight: 650 !important;
+  letter-spacing: .09em !important;
+}
+#root#root .shell .experience .agent-summary-metrics strong {
+  color: var(--mc-text) !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25 !important;
+}
+#root#root .shell .experience .agent-summary-metrics > div > span {
+  overflow: hidden;
+  color: var(--mc-text-dim) !important;
+  font-size: 10px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   4 · Section headers — the orphaned-layout fix
+   ========================================================================== */
+
+/* `<header><div><span class="section-kicker"/><strong/></div><button/></header>`
+   is the shared shape for a panel heading. Only some screens ever had a rule
+   for that inner `div`; the rest inherited nothing and ran the kicker into
+   the title. One primitive covers every occurrence. */
+
+#root#root .shell .experience :is(
+  .integration-directory, .history-chapters, .memory-briefing, .now-summary,
+  .groundstation-recipes, .supervision-briefing, .integration-list-section
+) > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  min-height: 34px;
+}
+#root#root .shell .experience :is(
+  .integration-directory, .history-chapters, .memory-briefing, .now-summary,
+  .groundstation-recipes, .supervision-briefing, .integration-list-section
+) > header > div {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+  row-gap: 2px;
+}
+#root#root .shell .experience :is(
+  .integration-directory, .history-chapters, .memory-briefing, .now-summary,
+  .groundstation-recipes, .supervision-briefing, .integration-list-section
+) > header > div > .section-kicker {
+  flex: 0 0 auto;
+  padding-right: var(--mc-space-2);
+  border-right: 1px solid var(--mc-hairline);
+  color: var(--mc-text-dim) !important;
+  font: 650 9.5px/1.4 var(--mc-font-mono) !important;
+  letter-spacing: .1em !important;
+}
+#root#root .shell .experience :is(
+  .integration-directory, .history-chapters, .memory-briefing, .now-summary,
+  .groundstation-recipes, .supervision-briefing, .integration-list-section
+) > header > div > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 12.5px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   5 · Accent discipline
+   ========================================================================== */
+
+/* premiumV3.css:103 forces `linear-gradient(145deg,#a5efc9,#62c995)` onto the
+   brand mark with `!important`, which is why the shell shipped a green
+   identity, a blue primary action and a violet assistant at the same time.
+   Green is a *status*, so it is returned to healthy/success only. */
+#root#root .shell .top-brand {
+  color: var(--mc-accent-strong) !important;
+  background: var(--mc-accent-soft) !important;
+  border: 1px solid var(--mc-accent-line) !important;
+  background-image: none !important;
+}
+
+/* No route-level gradient washes, glows or coloured slabs. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .integration-feature-callout,
+  .pm-card, .settings-panel, .need-item, .recipe-launch-card, .integration-row
+) {
+  background-image: none !important;
+}
+
+/* premiumDesign.css:870 paints every primary verb with
+   `background: linear-gradient(135deg, var(--theme-accent), var(--green-500))`
+   under `!important`. That shorthand carries no colour stop, so suppressing
+   only the image leaves a transparent button with near-black ink — the fill
+   has to be restated, not merely removed. */
+#root#root .shell :is(.btn-primary, .primary-button, .primary, .workspace-launch,
+                      .agent-primary-action, .agent-add-more, .mcp-start,
+                      .vscode-connect, .approve) {
+  color: var(--mc-text-ink) !important;
+  background: var(--mc-accent) !important;
+  background-image: none !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+#root#root .shell :is(.btn-primary, .primary-button, .primary, .workspace-launch,
+                      .agent-primary-action, .agent-add-more, .mcp-start,
+                      .vscode-connect, .approve):hover:not(:disabled) {
+  background: var(--mc-accent-strong) !important;
+  filter: none !important;
+}
+
+/* A recommended action sits one step below the primary one, so a row that
+   offers both does not present two equally loud buttons. */
+#root#root .shell .recommended {
+  color: var(--mc-accent-strong) !important;
+  background: var(--mc-accent-soft) !important;
+  background-image: none !important;
+  border: 1px solid var(--mc-accent-line) !important;
+  box-shadow: none !important;
+}
+#root#root .shell .recommended:hover:not(:disabled) {
+  color: var(--mc-text) !important;
+  filter: none !important;
+}
+
+/* The Groundstation status tape carried its own gradient wash. */
+#root#root .shell .mc-gs-statusbar {
+  background-image: none !important;
+  background-color: var(--mc-surface) !important;
+}
+
+/* Selection is a border state, not a green halo. */
+#root#root .shell .pm-card--selected {
+  border-color: var(--mc-accent-line) !important;
+  box-shadow: none !important;
+}
+
+/* Mission AI keeps a violet identity mark, not a violet button. */
+#root#root .shell .mc-gs-statusbar-actions .ai,
+#root#root .shell .experience .btn-ai {
+  color: var(--mc-text-soft) !important;
+  background: var(--mc-surface-2) !important;
+  background-image: none !important;
+  border-color: var(--mc-border) !important;
+}
+#root#root .shell .mc-gs-statusbar-actions .ai:hover,
+#root#root .shell .experience .btn-ai:hover {
+  color: var(--mc-text) !important;
+  background: var(--mc-surface-3) !important;
+  border-color: color-mix(in srgb, var(--mc-ai) 45%, var(--mc-border)) !important;
+}
+#root#root .shell .mc-gs-statusbar-actions .ai > span,
+#root#root .shell .experience .btn-ai > span:first-child {
+  color: var(--mc-ai-strong) !important;
+  background: var(--mc-ai-soft) !important;
+}
+
+/* A running worker is indicated, not illuminated. */
+#root#root .shell :is(.status-running, .status-live) i,
+#root#root .shell .tone-running i {
+  box-shadow: none !important;
+}
+
+/* ==========================================================================
+   6 · Empty, loading and error states
+   ========================================================================== */
+
+/* "Nothing is waiting" was stated three times on Needs You, under a 90px
+   badge, inside a full-viewport panel. One calm line answers it. */
+#root#root .shell .experience .needs-clear-state {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  min-height: 0 !important;
+  padding: var(--mc-space-4) var(--mc-space-4) !important;
+  text-align: left !important;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .experience .needs-clear-mark {
+  display: grid !important;
+  width: 20px !important;
+  height: 20px !important;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0 !important;
+  color: var(--mc-ok) !important;
+  background: var(--mc-ok-soft) !important;
+  border: 1px solid color-mix(in srgb, var(--mc-ok) 30%, transparent) !important;
+  border-radius: var(--mc-radius-pill) !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+}
+#root#root .shell .experience .needs-clear-state h3 {
+  margin: 0 !important;
+  color: var(--mc-text) !important;
+  font-size: 13px !important;
+  font-weight: 620 !important;
+}
+#root#root .shell .experience .needs-clear-state p {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0 !important;
+  color: var(--mc-text-dim) !important;
+  font-size: 11.5px !important;
+}
+#root#root .shell .experience .needs-clear-state .section-kicker {
+  order: -1;
+  flex: 0 0 auto;
+  color: var(--mc-ok) !important;
+}
+
+/* The shared empty state gets the same budget. */
+#root#root .shell .experience .empty-state {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  min-height: 0 !important;
+  padding: var(--mc-space-4) !important;
+  text-align: left !important;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .experience .empty-state .empty-orbit {
+  display: grid !important;
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0 !important;
+  background: var(--mc-surface-3) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-pill) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+#root#root .shell .experience .empty-state .empty-orbit i {
+  width: 5px;
+  height: 5px;
+  background: var(--mc-text-dim);
+  border-radius: 50%;
+}
+#root#root .shell .experience .empty-state > strong {
+  margin: 0 !important;
+  color: var(--mc-text) !important;
+  font-size: 13px !important;
+  font-weight: 620 !important;
+}
+#root#root .shell .experience .empty-state > p {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0 !important;
+  color: var(--mc-text-dim) !important;
+  font-size: 11.5px !important;
+}
+
+/* ==========================================================================
+   7 · Workspace command deck
+   ========================================================================== */
+
+/* The deck held six control groups on one line with no priority order, so
+   the focused worker's name truncated to "Multi-termi…" while a static
+   "CANVAS LAYOUT" caption wrapped onto two lines. Give the identity real
+   runway, retire the captions the group labels already provide, and let the
+   row wrap instead of shredding every item at once. */
+
+#root#root .shell .view-workspace .workspace-command-deck {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  padding: var(--mc-space-2) var(--mc-space-3) !important;
+  background: var(--mc-surface) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+#root#root .shell .view-workspace .workspace-title {
+  display: flex !important;
+  flex: 1 1 220px;
+  min-width: 0;
+  align-items: center;
+  gap: var(--mc-space-2);
+  padding: 0 !important;
+  border: 0 !important;
+}
+/* "TERMINAL WORKSPACE" restates the sidebar. `.layout-switcher` and the
+   search field are self-evident, and both groups already carry an
+   `aria-label`, so the printed captions are redundant to every reader. */
+#root#root .shell .view-workspace .workspace-title > .section-kicker,
+#root#root .shell .view-workspace .workspace-toolbar-layout > .workspace-toolbar-label {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+#root#root .shell .view-workspace .workspace-title > div {
+  display: flex !important;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--mc-space-2);
+}
+#root#root .shell .view-workspace .workspace-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 12.5px;
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .view-workspace .workspace-title small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .view-workspace .workspace-focus-state {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+#root#root .shell .view-workspace .workspace-toolbar-group {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--mc-space-2);
+  padding: 0 !important;
+  border: 0 !important;
+}
+#root#root .shell .view-workspace .workspace-toolbar-find {
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 320px;
+  position: relative;
+}
+#root#root .shell .view-workspace .workspace-worker-search {
+  display: flex !important;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--mc-space-2);
+  min-height: 30px;
+  padding: 0 var(--mc-space-2) !important;
+  background: var(--mc-surface-2) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .view-workspace .workspace-worker-search input {
+  min-width: 0;
+  flex: 1 1 auto;
+  background: transparent !important;
+  border: 0 !important;
+  font-size: 11.5px;
+}
+#root#root .shell .view-workspace .workspace-worker-search:focus-within {
+  border-color: var(--mc-accent-line) !important;
+}
+
+#root#root .shell .view-workspace .layout-switcher {
+  display: flex !important;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px !important;
+  background: var(--mc-surface-2) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+}
+#root#root .shell .view-workspace .layout-switcher button {
+  min-height: 24px !important;
+  padding: 0 var(--mc-space-2) !important;
+  color: var(--mc-text-dim) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--mc-radius-xs) !important;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+#root#root .shell .view-workspace .layout-switcher button small { display: none !important; }
+#root#root .shell .view-workspace .layout-switcher button b { font-weight: 620; }
+#root#root .shell .view-workspace .layout-switcher button:hover { color: var(--mc-text) !important; }
+#root#root .shell .view-workspace .layout-switcher button.is-current {
+  color: var(--mc-text) !important;
+  background: var(--mc-surface-4) !important;
+}
+
+#root#root .shell .view-workspace .workspace-actions {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-1);
+  margin-left: auto;
+}
+#root#root .shell .view-workspace .workspace-actions button {
+  min-height: 30px !important;
+  padding: 0 var(--mc-space-2) !important;
+  color: var(--mc-text-soft) !important;
+  background: var(--mc-surface-2) !important;
+  border: 1px solid var(--mc-border) !important;
+  border-radius: var(--mc-radius-sm) !important;
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+#root#root .shell .view-workspace .workspace-actions button:hover {
+  color: var(--mc-text) !important;
+  background: var(--mc-surface-3) !important;
+  border-color: var(--mc-border-strong) !important;
+}
+/* Adding a worker is the deck's one primary verb. */
+#root#root .shell .view-workspace .workspace-actions .workspace-add-worker {
+  color: var(--mc-text-ink) !important;
+  background: var(--mc-accent) !important;
+  border-color: transparent !important;
+  font-weight: 640;
+}
+#root#root .shell .view-workspace .workspace-actions .workspace-add-worker:hover {
+  background: var(--mc-accent-strong) !important;
+}
+#root#root .shell .view-workspace .workspace-actions .workspace-focus-mode.is-current {
+  color: var(--mc-text) !important;
+  background: var(--mc-accent-soft) !important;
+  border-color: var(--mc-accent-line) !important;
+}
+#root#root .shell .view-workspace .workspace-status-readout {
+  flex: 0 0 auto;
+  padding-right: var(--mc-space-2);
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root#root .shell .view-workspace .workspace-status-readout b { color: var(--mc-text-soft); font-weight: 640; }
+#root#root .shell .view-workspace .workspace-status-readout .is-attention { color: var(--mc-warning); }
+
+/* Least useful controls shed their labels before anything truncates. */
+@container workspace-stage (max-width: 1100px) {
+  #root#root .shell .view-workspace .workspace-status-readout { display: none; }
+}
+@container workspace-stage (max-width: 880px) {
+  #root#root .shell .view-workspace .workspace-toolbar-find { flex-basis: 100%; max-width: none; order: 1; }
+  #root#root .shell .view-workspace .workspace-actions { order: 2; margin-left: 0; }
+}
+
+/* ==========================================================================
+   8 · Terminal pane header
+   ========================================================================== */
+
+/* The header is the only chrome on a terminal, so it has to stay readable at
+   a third of the viewport. Making it a container lets the facts line drop
+   its lowest-value entries by *pane* width rather than window width. */
+#root#root .shell .view-workspace .terminal-pane__header {
+  container: pane-head / inline-size;
+  gap: var(--mc-space-2);
+}
+#root#root .shell .view-workspace .terminal-pane__identity {
+  display: flex !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+#root#root .shell .view-workspace .terminal-pane__identity > div {
+  display: grid !important;
+  min-width: 0;
+  gap: 0;
+}
+#root#root .shell .view-workspace .terminal-session-trigger {
+  display: flex !important;
+  min-width: 0;
+  min-height: 0 !important;
+  align-items: baseline;
+  gap: var(--mc-space-1);
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+#root#root .shell .view-workspace .terminal-session-trigger strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 11.5px;
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .view-workspace .terminal-session-trigger span { flex: 0 0 auto; color: var(--mc-text-dim); }
+
+/* Only the working directory may shrink; a status or a role tag is either
+   fully legible or absent. */
+#root#root .shell .terminal-pane__facts > :is(em, b) { flex: 0 0 auto; }
+#root#root .shell .terminal-pane__facts .terminal-pane__cwd { flex: 0 1 auto; min-width: 0; }
+
+/* Roughly 390px of the header is spoken for by the telemetry chip and the
+   action cluster, so each threshold is the facts' own budget plus that. The
+   lowest-value fact leaves whole; the ones that remain stay readable. */
+@container pane-head (max-width: 1000px) {
+  #root#root .shell .terminal-pane__facts .terminal-pane__cwd { display: none; }
+}
+/* Ownership is always the second-from-last fact, whether or not the worker
+   has reported an uptime, so it can be dropped by position without guessing. */
+@container pane-head (max-width: 640px) {
+  #root#root .shell .terminal-pane__facts em:nth-last-of-type(2) { display: none; }
+}
+@container pane-head (max-width: 470px) {
+  #root#root .shell .terminal-pane__facts em:nth-last-of-type(3) { display: none; }
+}
+@container pane-head (max-width: 350px) {
+  #root#root .shell .terminal-pane__facts .terminal-role-tag { display: none; }
+}
+
+/* The pane shortcut is a hint, not a control. */
+#root#root .shell .view-workspace .terminal-shortcut {
+  min-width: 0;
+  padding: 1px 4px !important;
+  color: var(--mc-text-dim) !important;
+  background: var(--mc-surface-3) !important;
+  border: 1px solid var(--mc-hairline) !important;
+  border-radius: var(--mc-radius-xs) !important;
+  font: 600 9px/1.4 var(--mc-font-mono) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+#root#root .shell .view-workspace .terminal-pane__actions > :is(button, .icon-button) {
+  min-height: 26px !important;
+  padding: 0 var(--mc-space-2) !important;
+  font-size: 10.5px;
+}
+#root#root .shell .view-workspace .terminal-pane__telemetry {
+  flex: 0 0 auto;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* The panes are the subject of this screen; a coloured top rail on each one
+   turns six of them into six competing highlights. */
+#root#root .shell .view-workspace .terminal-pane {
+  box-shadow: none !important;
+}
+#root#root .shell .view-workspace .terminal-pane.is-active {
+  border-color: var(--mc-accent-line) !important;
+}
+
+/* The empty pane invited a click with a 3-line paragraph in every slot. */
+#root#root .shell .view-workspace .terminal-pane-empty {
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-4);
+  background: var(--mc-canvas) !important;
+  background-image: none !important;
+}
+#root#root .shell .view-workspace .terminal-pane-empty > span {
+  font-size: 16px !important;
+  color: var(--mc-text-dim) !important;
+}
+#root#root .shell .view-workspace .terminal-pane-empty > strong {
+  font-size: 12px !important;
+  font-weight: 620 !important;
+}
+#root#root .shell .view-workspace .terminal-pane-empty > p {
+  max-width: 34ch;
+  margin: 0 !important;
+  color: var(--mc-text-dim) !important;
+  font-size: 11px !important;
+  text-align: center;
+}
+@container workspace-stage (max-width: 900px) {
+  #root#root .shell .view-workspace .terminal-pane-empty > p { display: none; }
+}
+
+/* ==========================================================================
+   9 · Integrations
+   ========================================================================== */
+
+/* The Mission AI callout was a full-width banner with a headline, a paragraph
+   and a filled button — larger than the directory it introduced. */
+#root#root .shell .experience .integration-feature-callout {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  padding: var(--mc-space-3) !important;
+}
+#root#root .shell .experience .integration-feature-callout > div:not(.integration-feature-mark) {
+  display: flex !important;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+  row-gap: 2px;
+}
+#root#root .shell .experience .integration-feature-mark {
+  display: grid !important;
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--mc-ai-strong) !important;
+  background: var(--mc-ai-soft) !important;
+  border: 1px solid color-mix(in srgb, var(--mc-ai) 30%, transparent) !important;
+  border-radius: var(--mc-radius-xs) !important;
+  font: 700 9px/1 var(--mc-font-mono) !important;
+}
+#root#root .shell .experience .integration-feature-callout h2 {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  font-size: 13px !important;
+  font-weight: 620 !important;
+}
+#root#root .shell .experience .integration-feature-callout p {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden;
+  color: var(--mc-text-dim) !important;
+  font-size: 11.5px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#root#root .shell .experience .integration-list-row {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  min-height: 40px;
+  padding: var(--mc-space-2) var(--mc-space-3) !important;
+}
+#root#root .shell .experience .integration-list-copy {
+  display: flex !important;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+}
+#root#root .shell .experience .integration-list-copy strong { flex: 0 0 auto; font-size: 12px; font-weight: 620; }
+#root#root .shell .experience .integration-list-copy small {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   10 · Cross-screen containment
+   ========================================================================== */
+
+/* One scroll owner per route. Nested panes that set their own `overflow`
+   produced a second, shorter scrollbar beside the page scrollbar on
+   Groundstation and Agents. */
+#root#root .shell .experience > :is(.agents-view, .needs-view, .history-view,
+                                     .integrations-page, .settings-hub) {
+  overflow: visible;
+}
+
+/* Settings and Recipes still used the tall card rhythm. */
+#root#root .shell .experience .settings-panel {
+  padding: var(--mc-space-3) var(--mc-space-4) !important;
+}
+#root#root .shell .experience .settings-panel__head {
+  display: flex !important;
+  align-items: center;
+  gap: var(--mc-space-2);
+  min-height: 30px;
+  margin-bottom: var(--mc-space-2) !important;
+}
+#root#root .shell .experience .settings-panel__head h3 {
+  margin: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 620 !important;
+}
+#root#root .shell .experience .settings-panel__head p {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden;
+  color: var(--mc-text-dim) !important;
+  font-size: 11px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .settings-panel__head > div {
+  display: flex !important;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+}
+#root#root .shell .experience .settings-panel__head :is(svg, .icon) { flex: 0 0 auto; }
+
+/* ==========================================================================
+   11 · Legibility floor
+   ========================================================================== */
+
+/* screens.css pinned the Groundstation lower-panel titles to 9px. Uppercase
+   at 9px with .13em tracking is a label, but it is below the size at which
+   this palette holds contrast on a near-black ground. */
+#root#root .shell .mc-ref-lower-grid .mc-ref-panel h3 {
+  color: var(--mc-text-muted);
+  font-size: 10.5px;
+  letter-spacing: .1em;
+}
+
+/* ==========================================================================
+   12 · Edges, focus and the Integrations directory
+   ========================================================================== */
+
+/* `#main-content` is the skip-link target and carries `tabindex="-1"`. An
+   *outer* focus ring on a region that fills the shell is clipped by the grid
+   to a bright vertical bar down the content edge, which reads as a stray
+   border rather than as focus. An inset ring lands inside the visible area
+   and still marks the region it belongs to. */
+#root#root .shell .main-area:focus,
+#root#root .shell .main-area:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px var(--mc-accent-line) !important;
+}
+
+/* A page description that loses two thirds of its sentence to an ellipsis is
+   not "supporting context" any more. One line when it fits, two when it does
+   not, and the header still cannot grow without bound. */
+#root#root .shell .experience :is(
+  .pm-page-hero, .page-command-header, .settings-hero, .integrations-hero,
+  .agents-hero, .history-hero, .needs-hero, .settings-hub__header,
+  .groundstation-hero, .mc-ref-hero, .agent-workforce-overview
+) p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+/* The directory rendered six bridges as six differently-shaped cards, because
+   the name and its description shared a wrapping row: at some widths the
+   description sat inline, at others it dropped below, so no two cards agreed
+   on height or baseline. A fixed 2x2 register makes them scan as one set. */
+#root#root .shell .experience .integration-list {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: var(--mc-space-2) !important;
+}
+#root#root .shell .experience .integration-list-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mc-space-1) var(--mc-space-2) !important;
+  min-height: 0;
+  padding: var(--mc-space-3) !important;
+}
+#root#root .shell .experience .integration-list-copy {
+  display: grid !important;
+  flex: initial;
+  grid-area: 1 / 1;
+  min-width: 0;
+  gap: 1px;
+}
+#root#root .shell .experience .integration-list-copy strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .integration-list-copy small {
+  flex: initial;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .integration-role-tag { grid-area: 1 / 2; justify-self: end; }
+#root#root .shell .experience .integration-status   { grid-area: 2 / 1; justify-self: start; }
+#root#root .shell .experience .integration-inspect  { grid-area: 2 / 2; justify-self: end; }
+
+/* The directory's own refresh control had no rule anywhere and fell back to
+   the user-agent button. */
+#root#root .shell .experience .integration-directory > header > button {
+  min-height: 28px;
+  padding: 0 var(--mc-space-3);
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+  font-weight: 560;
+}
+#root#root .shell .experience .integration-directory > header > button:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+
+/* ==========================================================================
+   13 · Terminal panes — one highlight, not six
+   ========================================================================== */
+
+/* premiumDesign.css:963 paints a 3px role-coloured rail and a gradient wash
+   across every pane header. At a 3x2 layout that is six competing highlights
+   in six different hues, and the role is already stated by the tag in the
+   facts line directly below. Keep the tag; drop the rail. */
+#root#root .shell .view-workspace .terminal-pane__header {
+  background: var(--mc-surface) !important;
+  background-image: none !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid var(--mc-border) !important;
+}
+#root#root .shell .view-workspace .terminal-pane.is-active .terminal-pane__header {
+  background: var(--mc-surface-2) !important;
+}
+/* Exactly one pane is focused, so exactly one carries an accent edge. */
+#root#root .shell .view-workspace .terminal-pane.is-active {
+  border-color: var(--mc-accent-line) !important;
+  box-shadow: inset 0 0 0 1px var(--mc-accent-line) !important;
+}
+#root#root .shell .terminal-role-tag {
+  color: color-mix(in srgb, var(--terminal-role, var(--mc-accent)) 58%, var(--mc-text-muted)) !important;
+  background: color-mix(in srgb, var(--terminal-role, var(--mc-accent)) 12%, var(--mc-surface-3)) !important;
+}
+#root#root .shell .view-workspace .terminal-drag-handle {
+  color: var(--mc-text-dim) !important;
+  opacity: 1 !important;
+}
+#root#root .shell .view-workspace .pane-resize-handle span {
+  box-shadow: none !important;
+  background: var(--mc-border-strong) !important;
+}
+
+/* Facts line: the role, state and uptime are short and load-bearing, so they
+   never shrink. Ownership and the working directory are the long ones, so
+   they are the ones that ellipsis — rather than every field losing three
+   characters each and none of them staying readable. */
+#root#root .shell .terminal-pane__facts { overflow: hidden; }
+
+/* Ownership sits between "always shown" and "dropped": where it fits it is
+   printed whole, where it half-fits it ellipsises to a readable stem rather
+   than being sliced mid-word by the container's own clip. */
+#root#root .shell .terminal-pane__facts em:nth-last-of-type(2) {
+  flex: 0 1 auto;
+  min-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow panes: shed the duplicated and the merely decorative before the
+   identity suffers. Every capability dropped here survives elsewhere —
+   Alt+N still focuses the pane, "Find in output" is in the ⋯ menu, and the
+   connection state is already printed in the facts line. Drag stays. */
+@container pane-head (max-width: 600px) {
+  #root#root .shell .view-workspace .terminal-shortcut { display: none; }
+}
+@container pane-head (max-width: 520px) {
+  #root#root .shell .view-workspace .terminal-pane__telemetry { display: none; }
+}
+@container pane-head (max-width: 440px) {
+  #root#root .shell .view-workspace .terminal-pane__actions .quiet-button { display: none; }
+}
+
+/* ==========================================================================
+   14 · Recipes
+   ========================================================================== */
+
+/* This screen had no rules at all in any *imported* stylesheet — its layout
+   lived only in files that 2.19 stopped importing, so it fell back to raw
+   block flow: the status strip stacked as four run-on lines, the guide
+   rendered as a bare ordered list, and every button was a user-agent
+   default. Promoting Recipes to the primary sidebar makes that
+   unacceptable, so the screen is given a real register here. */
+
+#root#root .shell .experience .page-command-header > .page-eyebrow,
+#root#root .shell .experience .page-command-header > div:first-child > .page-eyebrow {
+  flex: 0 0 auto;
+  order: -1;
+  padding-right: var(--mc-space-2);
+  border-right: 1px solid var(--mc-hairline);
+  color: var(--mc-text-dim);
+  font: 650 9.5px/1.4 var(--mc-font-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+#root#root .shell .experience .page-command-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+
+/* Status strip — the same meter grammar as Agents, History and Integrations,
+   with room for the caption this screen carries. */
+#root#root .shell .experience .recipes-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  overflow: hidden;
+  margin-bottom: var(--mc-space-4);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .experience .recipes-status-strip > div {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-left: 1px solid var(--mc-hairline);
+}
+#root#root .shell .experience .recipes-status-strip > div:first-child { border-left: 0; }
+#root#root .shell .experience .recipes-status-strip > div > span {
+  flex: 0 0 auto;
+  color: var(--mc-text-dim);
+  font: 650 9px/1.4 var(--mc-font-mono);
+  letter-spacing: .09em;
+}
+#root#root .shell .experience .recipes-status-strip > div > strong {
+  flex: 0 0 auto;
+  color: var(--mc-text);
+  font-size: 13px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+}
+#root#root .shell .experience .recipes-status-strip > div > small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .recipes-status-strip > div.has-risk > strong { color: var(--mc-warning); }
+
+/* Library beside a persistent explanation of what launching actually does. */
+#root#root .shell .experience .recipes-page-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 268px;
+  align-items: start;
+  gap: var(--mc-space-4);
+}
+#root#root .shell .experience .recipes-library { min-width: 0; }
+#root#root .shell .experience .recipes-library > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mc-space-2);
+  min-height: 32px;
+  margin-bottom: var(--mc-space-2);
+}
+#root#root .shell .experience .recipes-library > header > div {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: baseline;
+  column-gap: var(--mc-space-2);
+}
+#root#root .shell .experience .recipes-library > header h2 { margin: 0 !important; }
+#root#root .shell .experience .recipes-library > header > button {
+  min-height: 28px;
+  padding: 0 var(--mc-space-3);
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+}
+#root#root .shell .experience .recipes-library > header > button:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+
+#root#root .shell .experience .recipes-page-list {
+  display: grid;
+  gap: var(--mc-space-2);
+}
+
+/* A recipe row states what it is, what order it starts in, and what you can
+   do about it — left to right, one line of each. */
+#root#root .shell .experience .recipe-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: var(--mc-space-3);
+  padding: var(--mc-space-3) !important;
+}
+#root#root .shell .experience .recipe-row-main {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--mc-space-2);
+  min-width: 0;
+}
+#root#root .shell .experience .recipe-status-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  background: var(--mc-text-dim);
+  border-radius: 50%;
+}
+#root#root .shell .experience .recipe-row.phase-running .recipe-status-dot { background: var(--mc-accent); }
+#root#root .shell .experience .recipe-row.phase-failed .recipe-status-dot { background: var(--mc-danger); }
+#root#root .shell .experience .recipe-row.phase-paused .recipe-status-dot { background: var(--mc-warning); }
+#root#root .shell .experience .recipe-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mc-space-2);
+  min-width: 0;
+}
+#root#root .shell .experience .recipe-row-title h3 {
+  margin: 0 !important;
+  overflow: hidden;
+  font-size: 12.5px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .recipe-row-title > span {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-3);
+  border-radius: var(--mc-radius-xs);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+#root#root .shell .experience .recipe-row.phase-failed .recipe-row-title > span {
+  color: var(--mc-danger);
+  background: var(--mc-danger-soft);
+}
+#root#root .shell .experience .recipe-row-main p {
+  margin: 2px 0 0 !important;
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The startup chain is the point of a recipe, so it is shown, not summarised. */
+#root#root .shell .experience .recipe-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-1) 6px;
+  min-width: 0;
+}
+#root#root .shell .experience .recipe-flow > span {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  padding: 3px var(--mc-space-2);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-xs);
+}
+#root#root .shell .experience .recipe-flow b {
+  overflow: hidden;
+  color: var(--mc-text-soft);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root#root .shell .experience .recipe-flow small { color: var(--mc-text-dim); font-size: 9px; }
+#root#root .shell .experience .recipe-flow > i {
+  flex: 0 0 auto;
+  color: var(--mc-text-dim);
+  font-style: normal;
+  font-size: 10px;
+}
+#root#root .shell .experience .recipe-flow > em {
+  flex: 0 0 auto;
+  color: var(--mc-text-dim);
+  font-size: 10px;
+  font-style: normal;
+}
+#root#root .shell .experience .recipe-row > footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+
+/* Empty and error states match the rest of the product. */
+#root#root .shell .experience .page-empty-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  padding: var(--mc-space-4);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .experience .page-empty-state .empty-orbit {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--mc-text-muted);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-pill);
+  font-size: 11px;
+}
+#root#root .shell .experience .page-empty-state > strong {
+  flex: 0 0 auto;
+  color: var(--mc-text);
+  font-size: 12.5px;
+  font-weight: 620;
+}
+#root#root .shell .experience .page-empty-state > p {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0 !important;
+  color: var(--mc-text-dim);
+  font-size: 11.5px;
+}
+#root#root .shell .experience .page-empty-state > div {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+#root#root .shell .experience .page-empty-state.is-error { border-color: color-mix(in srgb, var(--mc-danger) 34%, var(--mc-border)); }
+#root#root .shell .experience .page-empty-state.is-error > strong { color: var(--mc-danger); }
+
+/* The guide is reference material: quiet, numbered, always available. */
+#root#root .shell .experience .recipes-guide {
+  display: grid;
+  gap: var(--mc-space-2);
+  align-content: start;
+  padding: var(--mc-space-3);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+#root#root .shell .experience .recipes-guide h2 { margin: 0 !important; font-size: 12.5px !important; }
+#root#root .shell .experience .recipes-guide ol {
+  display: grid;
+  gap: var(--mc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#root#root .shell .experience .recipes-guide li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--mc-space-2);
+}
+#root#root .shell .experience .recipes-guide li > b {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--mc-accent-strong);
+  background: var(--mc-accent-soft);
+  border-radius: var(--mc-radius-pill);
+  font: 650 9px/1 var(--mc-font-mono);
+}
+#root#root .shell .experience .recipes-guide li > span { display: grid; gap: 1px; min-width: 0; }
+#root#root .shell .experience .recipes-guide li strong { color: var(--mc-text-soft); font-size: 11px; font-weight: 620; }
+#root#root .shell .experience .recipes-guide li small { color: var(--mc-text-dim); font-size: 10px; line-height: 1.4; }
+#root#root .shell .experience .recipes-guide > button {
+  min-height: 30px;
+  color: var(--mc-text-soft);
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  font-size: 11.5px;
+}
+#root#root .shell .experience .recipes-guide > button:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-3);
+  border-color: var(--mc-border-strong);
+}
+
+@container groundstation (max-width: 900px) {
+  #root#root .shell .experience .recipes-page-layout { grid-template-columns: minmax(0, 1fr); }
+  #root#root .shell .experience .recipe-row { grid-template-columns: minmax(0, 1fr); }
+  #root#root .shell .experience .recipe-row > footer { justify-content: flex-end; }
+}
+
+/* ==========================================================================
+   15 · Theme correctness — the Solar and High-contrast palettes
+   ========================================================================== */
+
+/* tokens-bridge.css declares every legacy alias inside its `:root` block, e.g.
+   `--base: var(--mc-canvas)`. A custom property's `var()` is substituted at
+   the element where it is *declared*, so those aliases froze against the dark
+   palette on <html>. `.theme-solar` and `.theme-contrast` redefine the
+   `--mc-*` scale on `.shell`, one level below, and therefore never reached
+   any of the aliases: switching to Solar Light lit the panels but left the
+   page canvas near-black and `--text` white on white.
+
+   Re-declaring the same aliases on `.shell` — the element that actually
+   carries the theme class — makes each one resolve against whichever palette
+   is active. Values are unchanged; only the declaration site moves, so the
+   dark theme computes exactly as before. */
+#root#root .shell {
+  --mc-info: var(--mc-accent);
+  --mc-focus-ring: 0 0 0 2px var(--mc-void), 0 0 0 4px var(--mc-accent-line);
+  --mc-raise-1: 0 1px 1px rgba(0, 0, 0, .34), 0 2px 6px -2px rgba(0, 0, 0, .4), var(--mc-edge);
+  --mc-raise-2: 0 2px 4px -1px rgba(0, 0, 0, .38), 0 10px 26px -10px rgba(0, 0, 0, .55), var(--mc-edge);
+  --mc-ring-accent: 0 0 0 1px var(--mc-accent-line), 0 0 22px -8px var(--mc-accent);
+  --void: var(--mc-void);
+  --base: var(--mc-canvas);
+  --surface: var(--mc-surface);
+  --surface-2: var(--mc-surface-2);
+  --surface-3: var(--mc-surface-3);
+  --line: var(--mc-border);
+  --line-strong: var(--mc-border-strong);
+  --text: var(--mc-text);
+  --muted: var(--mc-text-muted);
+  --dim: var(--mc-text-dim);
+  --accent: var(--mc-accent);
+  --accent-strong: var(--mc-accent-strong);
+  --accent-ink: var(--mc-text-ink);
+  --amber: var(--mc-warning);
+  --red: var(--mc-danger);
+  --blue: var(--mc-accent);
+  --shadow-menu: var(--mc-shadow-2);
+  --shadow-dialog: var(--mc-shadow-float);
+  --shadow-focus: 0 0 0 2px var(--mc-accent-soft);
+  --shadow-card: var(--mc-shadow-1);
+  --radius: var(--mc-radius-md);
+  --radius-lg: var(--mc-radius-lg);
+  --radius-xl: var(--mc-radius-lg);
+  --mc-accent-ink: var(--mc-text-ink);
+  --green-300: var(--mc-ok);
+  --green-400: var(--mc-ok);
+  --blue-300: var(--mc-accent-strong);
+  --blue-500: var(--mc-accent);
+  --violet-300: var(--mc-ai-strong);
+  --violet-500: var(--mc-ai);
+  --amber-300: var(--mc-warning);
+  --slate-50: var(--mc-text);
+  --slate-200: var(--mc-text-soft);
+  --slate-400: var(--mc-text-muted);
+  --slate-500: var(--mc-text-dim);
+  --slate-800: var(--mc-surface-3);
+  --slate-850: var(--mc-surface-2);
+  --slate-900: var(--mc-surface);
+  --slate-950: var(--mc-void);
+  --orbital-canvas: var(--mc-void);
+  --orbital-sidebar: var(--mc-void);
+  --orbital-work: var(--mc-canvas);
+  --orbital-raised: var(--mc-surface);
+  --orbital-card: var(--mc-surface-2);
+  --orbital-accent: var(--mc-accent);
+  --orbital-text: var(--mc-text);
+  --surface-raised: var(--mc-surface-2);
+  --surface-hover: var(--mc-surface-3);
+  --surface-selected: var(--mc-accent-soft);
+  --shadow-float: var(--mc-shadow-float);
+  --surface-canvas: var(--mc-canvas);
+  --accent-primary: var(--mc-accent);
+  --accent-primary-glow: var(--mc-accent-soft);
+  --accent-ai: var(--mc-ai);
+  --accent-warning: var(--mc-warning);
+  --accent-attention: var(--mc-warning);
+  --accent-vscode: var(--mc-accent);
+  --accent-recipe: var(--mc-ai);
+  --status-needs-you: var(--mc-warning);
+  --border-subtle: var(--mc-border);
+  --border-default: var(--mc-border);
+  --text-dim-semantic: var(--mc-text-dim);
+  --text-muted-semantic: var(--mc-text-muted);
+  --radius-control-semantic: var(--mc-radius-sm);
+}
+
+/* ==========================================================================
+   16 · View canvas and the command palette
+   ========================================================================== */
+
+/* styles.css paints each route's canvas with a hardcoded hex plus a decorative
+   radial wash — `.view-groundstation` ends in `#090b10`, `.view-agents` in
+   `#090b11`, `.view-needs` in `#0a0c10`, each under two coloured glows. That
+   is why Solar Light lit the panels but left the page itself near-black, and
+   it is the last of the decorative gradient washes. One token, no glow. */
+#root#root .shell > .main-area > .experience {
+  background: var(--mc-canvas) !important;
+  background-image: none !important;
+}
+/* The terminal canvas stays on the darkest surface so panes read as inset. */
+#root#root .shell > .main-area > .experience.view-workspace {
+  background: var(--mc-void) !important;
+}
+
+/* The palette is portalled outside `.shell`, so it is addressed directly.
+   Its rows put the label and the group in one unstyled span, which rendered
+   as "GroundstationNavigate" — the label running straight into its group. */
+.command-palette [cmdk-item] > span:not(.palette-icon) {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.command-palette [cmdk-item] > span:not(.palette-icon) > strong {
+  overflow: hidden;
+  color: var(--mc-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-palette [cmdk-item] > span:not(.palette-icon) > small {
+  overflow: hidden;
+  color: var(--mc-text-dim);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-palette [cmdk-item] {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mc-space-2);
+  min-height: 38px;
+  padding: var(--mc-space-1) var(--mc-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--mc-radius-xs);
+}
+.command-palette [cmdk-item][data-selected="true"] {
+  background: var(--mc-accent-soft);
+  border-color: var(--mc-accent-line);
+}
+.command-palette .palette-icon { display: grid; place-items: center; color: var(--mc-text-muted); }
+.command-palette [cmdk-item][data-selected="true"] .palette-icon { color: var(--mc-accent); }
+.command-palette [cmdk-item] > kbd {
+  padding: 1px 5px;
+  color: var(--mc-text-dim);
+  background: var(--mc-surface-3);
+  border: 1px solid var(--mc-hairline);
+  border-radius: var(--mc-radius-xs);
+  font: 600 9.5px/1.5 var(--mc-font-mono);
+}
+
+/* premiumDesign.css carries a second, independent token layer — `--theme-*`,
+   `--surface-*`, `--text-*`, `--border-*` — declared in its own `:root`
+   block and rooted in the `--orbital-*` aliases above. It froze against the
+   dark palette for exactly the same reason, which is why headings such as
+   "Project operations" stayed white on the Solar Light canvas. The same move
+   applies: identical declarations, re-sited on `.shell`, plus the four
+   hardcoded colours pointed at the semantic scale. */
+#root#root .shell {
+  --theme-text-default: var(--mc-text-soft);
+  --theme-text-muted: var(--mc-text-muted);
+  --theme-text-dim: var(--mc-text-dim);
+  --theme-accent-ink: var(--mc-text-ink);
+  --theme-canvas: var(--orbital-canvas);
+  --theme-sidebar: var(--orbital-sidebar);
+  --theme-work: var(--orbital-work);
+  --theme-raised: var(--orbital-raised);
+  --theme-card: var(--orbital-card);
+  --theme-overlay: var(--orbital-overlay);
+  --theme-text-strong: var(--orbital-text);
+  --theme-accent: var(--orbital-accent);
+  --font-display: var(--font-family-display);
+  --font-ui: var(--font-family-ui);
+  --font-mono: var(--font-family-mono);
+  --font-sans: var(--font-family-ui);
+  --space-1x: var(--space-1);
+  --space-2x: var(--space-2);
+  --space-3x: var(--space-3);
+  --space-4x: var(--space-4);
+  --space-5x: var(--space-5);
+  --space-6x: var(--space-6);
+  --space-8x: var(--space-8);
+  --space-10x: var(--space-10);
+  --space-12x: var(--space-12);
+  --surface-base: var(--theme-canvas);
+  --surface-canvas: var(--theme-canvas);
+  --surface-sidebar: var(--theme-sidebar);
+  --surface-work: var(--theme-work);
+  --surface-card: var(--theme-card);
+  --surface-raised: var(--theme-raised);
+  --surface-overlay: var(--theme-overlay);
+  --surface-hover-semantic: color-mix(in srgb, var(--theme-text-strong) 5%, transparent);
+  --surface-selected-semantic: color-mix(in srgb, var(--theme-accent) 9%, transparent);
+  --surface-hover: var(--surface-hover-semantic);
+  --surface-selected: var(--surface-selected-semantic);
+  --text-strong: var(--theme-text-strong);
+  --text-default: var(--theme-text-default);
+  --text-muted: var(--theme-text-muted);
+  --text-dim: var(--theme-text-dim);
+  --text-placeholder: color-mix(in srgb, var(--theme-text-dim) 76%, transparent);
+  --text-muted-semantic: var(--text-muted);
+  --text-dim-semantic: var(--text-dim);
+  --border-subtle: color-mix(in srgb, var(--theme-text-strong) 7%, transparent);
+  --border-default: color-mix(in srgb, var(--theme-text-strong) 12%, transparent);
+  --border-strong: color-mix(in srgb, var(--theme-text-strong) 22%, transparent);
+  --border-focus: color-mix(in srgb, var(--theme-accent) 80%, transparent);
+  --accent-primary: var(--theme-accent);
+  --accent-primary-bright: var(--green-200);
+  --accent-primary-ink: var(--theme-accent-ink);
+  --accent-primary-glow: color-mix(in srgb, var(--theme-accent) 28%, transparent);
+  --accent-healthy: var(--theme-accent);
+  --accent-healthy-soft: color-mix(in srgb, var(--theme-accent) 9%, transparent);
+  --accent-ai: var(--violet-300);
+  --accent-vscode: var(--blue-300);
+  --accent-mcp: var(--amber-300);
+  --accent-mobile: var(--cyan-300);
+  --accent-plugin: var(--rose-300);
+  --accent-recipe: var(--teal-300);
+  --accent-warning: var(--amber-300);
+  --accent-danger: var(--red-300);
+  --accent-attention: var(--orange-300);
+  --accent-connection: var(--blue-300);
+  --status-running: var(--accent-healthy);
+  --status-starting: var(--accent-warning);
+  --status-failed: var(--accent-danger);
+  --status-idle: var(--theme-text-dim);
+  --status-attention: var(--accent-attention);
+  --status-needs-you: var(--accent-attention);
+  --status-connecting: var(--accent-warning);
+  --radius-control-semantic: var(--radius-sm);
+  --radius-panel-semantic: var(--radius-lg);
+  --radius-dialog-semantic: var(--radius-xl);
+  --radius-pill-semantic: var(--radius-pill);
+  --shadow-dialog-semantic: var(--shadow-dialog);
+  --shadow-popover-semantic: var(--shadow-lg);
+  --shadow-toast-semantic: var(--shadow-md);
+  --shadow-glow-green: 0 0 26px var(--accent-primary-glow);
+  --shadow-glow-violet: 0 0 26px var(--accent-ai-glow);
+  --shadow-glow-blue: 0 0 26px var(--accent-vscode-glow);
+  --shadow-glow-amber: 0 0 26px var(--accent-mcp-glow);
+  --shadow-glow-cyan: 0 0 26px var(--accent-mobile-glow);
+  --glass-surface: color-mix(in srgb, var(--surface-card) 74%, transparent);
+  --glass-surface-md: color-mix(in srgb, var(--surface-work) 86%, transparent);
+  --glass-surface-strong: color-mix(in srgb, var(--surface-overlay) 96%, transparent);
+  --glass-border: var(--border-default);
+  --gradient-primary: linear-gradient(135deg, var(--theme-accent), var(--green-500));
+  --gradient-ai: linear-gradient(135deg, var(--violet-300), var(--violet-500));
+  --gradient-vscode: linear-gradient(135deg, var(--blue-300), var(--blue-500));
+  --gradient-mcp: linear-gradient(135deg, var(--amber-300), var(--amber-500));
+  --gradient-mobile: linear-gradient(135deg, var(--cyan-300), var(--cyan-500));
+  --gradient-recipe: linear-gradient(135deg, var(--teal-300), var(--teal-500));
+  --focus-ring-semantic: 0 0 0 2px color-mix(in srgb, var(--theme-accent) 80%, transparent);
+  --base: var(--surface-base);
+  --void: var(--surface-sidebar);
+  --surface: var(--surface-work);
+  --surface-1: var(--surface-work);
+  --surface-2: var(--surface-raised);
+  --surface-3: var(--surface-card);
+  --line: var(--border-default);
+  --line-soft: var(--border-subtle);
+  --line-strong: var(--border-strong);
+  --text: var(--text-default);
+  --muted: var(--text-muted);
+  --dim: var(--text-dim);
+  --accent: var(--accent-primary);
+  --accent-strong: var(--accent-primary-bright);
+  --accent-ink: var(--accent-primary-ink);
+  --danger: var(--accent-danger);
+  --red: var(--accent-danger);
+  --amber: var(--accent-warning);
+  --blue: var(--accent-vscode);
+}
